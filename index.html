@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <script>
+    // Giriş yoxlanışı
+    if (!localStorage.getItem("isLoggedIn")) {
+        window.location.href = "login.html";
+    }
+    </script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Clone</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.18.2.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="servers-nav">
+        <div class="server-icon home-icon active">
+            <i class="fa-brands fa-discord"></i>
+        </div>
+        <div class="separator"></div>
+        
+        <div class="server-wrapper">
+            <div class="pill"></div>
+            <div class="server-icon" data-name="Kodlama Serveri" onclick="switchServer(this)">
+                <img src="https://ui-avatars.com/api/?name=Code&background=random" alt="Server">
+            </div>
+        </div>
+        <div class="server-wrapper">
+            <div class="pill"></div>
+            <div class="server-icon" data-name="Oyun Otağı" onclick="switchServer(this)">
+                <img src="https://ui-avatars.com/api/?name=Game&background=random" alt="Server">
+            </div>
+        </div>
+        
+        <div class="server-wrapper">
+             <div class="server-icon add-icon">
+                <i class="fa-solid fa-plus"></i>
+            </div>
+        </div>
+    </nav>
+
+    <aside class="channels-sidebar">
+        <header class="server-header">
+            <h3 id="current-server-name">Kodlama Serveri</h3>
+            <i class="fa-solid fa-chevron-down"></i>
+        </header>
+
+        <div class="channels-list">
+            <div class="category">
+                <i class="fa-solid fa-angle-down"></i>
+                <span>TEXT CHANNELS</span>
+            </div>
+            
+            <div class="channel-item active" data-channel="general">
+                <i class="fa-solid fa-hashtag"></i>
+                <span>general</span>
+            </div>
+            <div class="channel-item" data-channel="help">
+                <i class="fa-solid fa-hashtag"></i>
+                <span>help</span>
+            </div>
+            <div class="channel-item" data-channel="off-topic">
+                <i class="fa-solid fa-hashtag"></i>
+                <span>off-topic</span>
+            </div>
+
+            <div class="category voice">
+                <i class="fa-solid fa-angle-down"></i>
+                <span>VOICE CHANNELS</span>
+            </div>
+            
+            <div class="channel-item voice-channel" onclick="joinChannel()">
+                <i class="fa-solid fa-volume-high"></i>
+                <span>Lounge</span>
+            </div>
+            
+            <div id="voice-users-sidebar" class="voice-users-sidebar"></div>
+        </div>
+        
+        <div id="voice-connection-panel" class="voice-panel" style="display: none;">
+            <div class="voice-info">
+                <i class="fa-solid fa-signal" style="color: #23A559;"></i>
+                <div>
+                    <div class="connection-status" style="color: #23A559; font-weight: bold;">Voice Connected</div>
+                    <div class="channel-name-display" style="font-size: 11px; color: #dbdee1;">Lounge</div>
+                </div>
+            </div>
+            <div class="voice-controls-sidebar">
+                <i class="fa-solid fa-video" id="sidebar-cam-btn" onclick="toggleCamera()" title="Kamera"></i>
+                <i class="fa-solid fa-desktop" id="sidebar-screen-btn" onclick="toggleScreen()" title="Ekran Paylaşımı"></i>
+                <i class="fa-solid fa-phone-slash" id="leave-btn" style="cursor: pointer; color: #DA373C;" onclick="leaveChannel()" title="Ayrıl"></i>
+            </div>
+        </div>
+
+        <div class="user-panel">
+        <div class="user-info">
+        <div class="avatar-wrapper">
+            <img src="https://ui-avatars.com/api/?name=User&background=random" alt="User" id="current-user-avatar">
+            <div class="status-dot"></div>
+        </div>
+        <div class="name-tag">
+            <div class="username" id="current-username">Mən</div>
+            <div class="discriminator">#1234</div>
+        </div>
+    </div>
+
+    <div class="user-actions">
+        <i class="fa-solid fa-microphone" id="mic-btn" onclick="toggleMic()"></i>
+        <i class="fa-solid fa-headphones"></i>
+        <i class="fa-solid fa-gear" onclick="openSettings()" title="Ayarlar"></i>
+    </div>
+</div>
+    </aside>
+
+    <main class="chat-area">
+        <header class="chat-header">
+            <div class="header-left">
+                <i class="fa-solid fa-hashtag"></i>
+                <h3 id="chat-title">general</h3>
+                <span class="topic">Ümumi müzakirələr üçün</span>
+            </div>
+            <div class="header-right">
+                <i class="fa-solid fa-bell"></i>
+                <i class="fa-solid fa-thumbtack"></i>
+                <i class="fa-solid fa-users"></i>
+                <div class="search-bar" style="display: flex; align-items: center; background: #1e1f22; padding: 2px 8px; border-radius: 4px; height: 24px;">
+                    <input type="text" placeholder="Search" style="background: transparent; border: none; color: white; width: 120px; font-size: 12px; outline: none;">
+                    <i class="fa-solid fa-magnifying-glass" style="font-size: 12px;"></i>
+                </div>
+            </div>
+        </header>
+
+        <div class="messages-container" id="messages">
+            <div class="message">
+                <div class="message-avatar">
+                    <img src="https://ui-avatars.com/api/?name=Mentor&background=5865F2&color=fff" alt="Mentor">
+                </div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="msg-username">Mentor</span>
+                        <span class="msg-time">Today at 12:00 PM</span>
+                    </div>
+                    <p class="msg-text">Salam! Discord klonunu yazmağa başlamağın əla xəbərdir.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <div class="input-wrapper">
+                <i class="fa-solid fa-circle-plus add-file-icon"></i>
+                <input type="text" id="messageInput" placeholder="Message #general">
+                <div class="input-icons">
+                    <i class="fa-solid fa-gift"></i>
+                    <i class="fa-solid fa-note-sticky"></i>
+                    <i class="fa-solid fa-face-smile"></i>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <main class="voice-chat-area" id="voice-chat-interface">
+        <header class="chat-header">
+            <div class="header-left">
+                <i class="fa-solid fa-volume-high"></i>
+                <h3>Lounge</h3>
+                <span class="topic">Voice Channel</span>
+            </div>
+        </header>
+        
+        <div class="voice-grid" id="voice-grid"></div>
+        
+        <div class="voice-bottom-bar">
+            
+            <div class="control-capsule">
+                <button class="main-control-btn" id="mic-btn-main" onclick="toggleMic()">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                
+             <button class="main-control-btn" id="cam-btn" onclick="toggleCamera()">
+                <i class="fa-solid fa-video-slash"></i>
+            </button>
+
+            <button class="main-control-btn" id="screen-btn" onclick="toggleScreen()">
+                <i class="fa-solid fa-desktop"></i>
+            </button>
+        </div>
+
+        <button class="main-control-btn hangup-btn" onclick="leaveChannel()">
+            <i class="fa-solid fa-phone-slash"></i>
+        </button>
+
+    </div>
+        
+</main>
+
+<aside class="members-sidebar">
+    <div class="role-header">ONLINE — 1</div>
+    <div class="member-item">
+        <div class="member-avatar-wrapper">
+                <img src="https://ui-avatars.com/api/?name=Mentor&background=5865F2&color=fff" alt="M">
+                <div class="status-dot"></div>
+            </div>
+            <div class="member-info">
+                <span class="member-name" style="color: #e91e63;">Mentor</span>
+                <span class="member-status">Coding...</span>
+            </div>
+        </div>
+        <div class="role-header">OFFLINE — 5</div>
+        <div class="member-item offline">
+            <div class="member-avatar-wrapper">
+                <img src="https://ui-avatars.com/api/?name=Bot&background=gray&color=fff" alt="B">
+            </div>
+            <div class="member-info">
+                <span class="member-name">Music Bot</span>
+            </div>
+        </div>
+    </aside>
+
+<div id="server-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Serverini Fərdiləşdir</h2>
+            <p>Yeni serverinə bir ad və simvol ver.</p>
+        </div>
+            <div class="modal-body">
+                <div class="upload-container">
+                    <div class="image-preview" id="image-preview">
+                        <i class="fa-solid fa-camera"></i>
+                    </div>
+                    <input type="file" id="server-icon-input" accept="image/*" hidden>
+                    <div class="upload-text">UPLOAD</div>
+                </div>
+
+                <div class="input-group">
+                    <label>SERVER ADI</label>
+                    <input type="text" id="server-name-input" placeholder="Mənim Möhtəşəm Serverim">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeModal()">Geri</button>
+                <button class="btn-create" onclick="createNewServer()">Yarat</button>
+            </div>
+    </div>
+</div>
+
+<div id="settings-modal" class="modal-overlay">
+    <div class="settings-content">
+        <div class="settings-sidebar">
+            <div class="settings-tab active">Mənim Hesabım</div>
+            <div class="settings-tab">Profillər</div>
+            <div class="settings-tab">Məxfilik</div>
+            <hr class="separator">
+            <div class="settings-tab logout" onclick="logout()">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                Çıxış Et
+            </div>
+        </div>
+
+        <div class="settings-main">
+            <h2>Mənim Hesabım</h2>
+            
+            <div class="settings-profile-card">
+                <div class="profile-header"></div>
+                <div class="profile-info-bar">
+                    <div class="profile-avatar-large">
+                        <img src="https://ui-avatars.com/api/?name=User&background=random" id="settings-avatar-preview">
+                    </div>
+                    <div class="profile-name-section">
+                        <h3 id="settings-username-display">Mən</h3>
+                        <span>#1234</span>
+                    </div>
+                    <button class="btn-edit">Profili Düzəlt</button>
+                </div>
+            </div>
+
+            <div class="settings-form">
+                <div class="input-group">
+                    <label>GÖRÜNƏN AD (USERNAME)</label>
+                    <input type="text" id="settings-username-input" placeholder="Adını yaz...">
+                </div>
+
+                <div class="input-group">
+                    <label>MİKROFON CİHAZI</label>
+                    <select id="mic-select" class="device-select">
+                        <option value="default">Default Device</option>
+                    </select>
+                </div>
+
+                <div class="settings-actions">
+                    <button class="btn-cancel" onclick="closeSettings()">Ləğv et</button>
+                    <button class="btn-save" onclick="saveSettings()">Yadda Saxla</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="close-settings-btn" onclick="closeSettings()">
+            <div class="close-circle">
+                <i class="fa-solid fa-xmark"></i>
+            </div>
+            <span>ESC</span>
+        </div>
+    </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

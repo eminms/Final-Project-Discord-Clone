@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giriş - Discord Clone</title>
+    <link rel="stylesheet" href="style.css"> 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Formları gizlətmək üçün köməkçi klass */
+        .hidden { display: none; }
+        .error-msg { color: #DA373C; font-size: 12px; margin-top: 5px; display: none; }
+    </style>
+</head>
+<body class="login-body">
+
+    <div class="login-container">
+        <div class="login-box">
+            
+            <div class="login-header">
+                <h2 id="page-title">Xoş Gəldiniz!</h2>
+                <p id="page-subtitle">Sizi yenidən görməyə şadıq!</p>
+            </div>
+
+            <div id="login-form">
+                <div class="form-group">
+                    <label>EMAIL</label>
+                    <input type="email" id="login-email" required>
+                </div>
+
+                <div class="form-group">
+                    <label>ŞİFRƏ</label>
+                    <input type="password" id="login-password" required>
+                    <a href="#" class="forgot-pass">Şifrəni unutmusan?</a>
+                    <div class="error-msg" id="login-error">Email və ya şifrə yanlışdır!</div>
+                </div>
+
+                <button class="btn-login" onclick="handleLogin()">Giriş Et</button>
+
+                <div class="register-text">
+                    Hesabın yoxdur? <a href="#" onclick="toggleMode()">Qeydiyyatdan keç</a>
+                </div>
+            </div>
+
+            <div id="register-form" class="hidden">
+                <div class="form-group">
+                    <label>EMAIL</label>
+                    <input type="email" id="reg-email" required>
+                </div>
+
+                <div class="form-group">
+                    <label>İSTİFADƏÇİ ADI (GÖRÜNƏN AD)</label>
+                    <input type="text" id="reg-username" required>
+                </div>
+
+                <div class="form-group">
+                    <label>ŞİFRƏ</label>
+                    <input type="password" id="reg-password" required>
+                </div>
+
+                <div class="form-group">
+                    <label>ŞİFRƏNİ TƏSDİQLƏ</label>
+                    <input type="password" id="reg-confirm" required>
+                    <div class="error-msg" id="reg-error"></div>
+                </div>
+
+                <button class="btn-login" onclick="handleRegister()">Davam Et</button>
+
+                <div class="register-text">
+                    Artıq hesabın var? <a href="#" onclick="toggleMode()">Giriş et</a>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=DiscordClone" alt="QR Code">
+            <h3>QR Kodla giriş</h3>
+            <p>Mobil tətbiq ilə skan edərək <br> dərhal daxil ol.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. MODE DƏYİŞMƏK (Login <-> Register) ---
+        function toggleMode() {
+            const loginForm = document.getElementById('login-form');
+            const regForm = document.getElementById('register-form');
+            const title = document.getElementById('page-title');
+            const subtitle = document.getElementById('page-subtitle');
+            
+            // Xətaları təmizləyək
+            document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('input').forEach(el => el.value = '');
+
+            if (loginForm.style.display === "none") {
+                // Login-ə qayıt
+                loginForm.style.display = "block";
+                regForm.style.display = "none";
+                title.innerText = "Xoş Gəldiniz!";
+                subtitle.innerText = "Sizi yenidən görməyə şadıq!";
+            } else {
+                // Register-ə keç
+                loginForm.style.display = "none";
+                regForm.style.display = "block";
+                title.innerText = "Hesab Yarat";
+                subtitle.innerText = "Dostların səni gözləyir!";
+            }
+        }
+
+        // --- 2. QEYDİYYAT MƏNTİQİ ---
+        function handleRegister() {
+            const email = document.getElementById('reg-email').value;
+            const username = document.getElementById('reg-username').value;
+            const pass = document.getElementById('reg-password').value;
+            const confirmPass = document.getElementById('reg-confirm').value;
+            const errorBox = document.getElementById('reg-error');
+
+            // Boşluq yoxlanışı
+            if (!email || !username || !pass || !confirmPass) {
+                errorBox.innerText = "Bütün xanaları doldurun!";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            // Şifrə uyğunluğu
+            if (pass !== confirmPass) {
+                errorBox.innerText = "Şifrələr eyni deyil!";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            // İstifadəçi artıq varmı? (Sadə yoxlama)
+            if (localStorage.getItem("user_" + email)) {
+                errorBox.innerText = "Bu email artıq qeydiyyatdan keçib!";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            // YADDAŞA YAZ (DATABASE SİMULYASİYASI)
+            const userData = {
+                username: username,
+                password: pass
+            };
+            localStorage.setItem("user_" + email, JSON.stringify(userData));
+
+            alert("Qeydiyyat uğurludur! İndi giriş edə bilərsiniz.");
+            toggleMode(); // Login səhifəsinə atır
+        }
+
+        // --- 3. GİRİŞ MƏNTİQİ ---
+        function handleLogin() {
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-password').value;
+            const errorBox = document.getElementById('login-error');
+
+            if (!email || !pass) {
+                errorBox.innerText = "Xanaları doldurun!";
+                errorBox.style.display = "block";
+                return;
+            }
+
+            // Yaddaşdan oxu
+            const storedUser = localStorage.getItem("user_" + email);
+            
+            if (storedUser) {
+                const userData = JSON.parse(storedUser);
+                
+                // Şifrəni yoxla
+                if (userData.password === pass) {
+                    // Uğurlu Giriş!
+                    localStorage.setItem("isLoggedIn", "true");
+                    localStorage.setItem("username", userData.username); // Adı yadda saxla
+                    
+                    window.location.href = "index.html"; // Spikə keç
+                } else {
+                    errorBox.innerText = "Şifrə yanlışdır!";
+                    errorBox.style.display = "block";
+                }
+            } else {
+                errorBox.innerText = "İstifadəçi tapılmadı! Qeydiyyatdan keçin.";
+                errorBox.style.display = "block";
+            }
+        }
+    </script>
+</body>
+</html>
