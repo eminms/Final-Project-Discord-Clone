@@ -124,6 +124,8 @@ body {
     border-radius: 35%;
 }
 
+
+
 /* =========================================
    3. CHANNELS SIDEBAR
    ========================================= */
@@ -1174,4 +1176,249 @@ body.login-body {
 .qr-box p {
     color: #b5bac1;
     font-size: 14px;
+}
+
+/* =========================================
+   DOSTLAR ÜST MENYUSU (FRIENDS HEADER)
+   ========================================= */
+.friends-header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.friends-icon {
+    color: #80848e;
+    font-size: 18px;
+}
+
+.vertical-separator {
+    width: 1px;
+    height: 24px;
+    background-color: #42454a;
+    margin: 0 10px;
+}
+
+.friends-tabs {
+    display: flex;
+    gap: 10px;
+}
+
+.friend-tab {
+    background: transparent;
+    border: none;
+    color: #b5bac1;
+    font-size: 15px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.friend-tab:hover {
+    background-color: #3f4147;
+    color: #dbdee1;
+}
+
+.friend-tab.active {
+    background-color: #42464d;
+    color: #fff;
+    cursor: default;
+}
+
+/* Dost Əlavə Et (Yaşıl düymə) */
+.friend-tab.add-friend-btn {
+    background-color: #248046;
+    color: #fff;
+}
+
+.friend-tab.add-friend-btn:hover {
+    background-color: #1a6334;
+}
+
+.friend-tab.add-friend-btn.active {
+    background-color: transparent;
+    color: #2dc770;
+}
+
+/* =========================================
+   DOSTLAR EKRANI (Orta Panel)
+   ========================================= */
+.friends-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1; /* Qalan bütün boşluğu doldurur */
+    padding: 20px 30px;
+    background-color: #313338;
+}
+
+.friends-content {
+    display: none; /* JS ilə idarə edib birini göstərib digərini gizlədəcəyik */
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Boş siyahı şəkli (Empty state) */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #949ba4;
+    font-size: 16px;
+    margin-top: 50px;
+}
+
+/* Dost Əlavə Et hissəsi */
+.add-friend-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.add-friend-title {
+    color: #f2f3f5;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.add-friend-desc {
+    color: #b5bac1;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+
+.add-friend-input-wrapper {
+    display: flex;
+    align-items: center;
+    background-color: #1e1f22;
+    border-radius: 8px;
+    padding: 0 12px;
+    border: 1px solid #1e1f22;
+    transition: border-color 0.2s;
+}
+
+.add-friend-input-wrapper:focus-within {
+    border-color: #5865f2; /* Daxilinə klikləyəndə Discord rəngi yanır */
+}
+
+.add-friend-input-wrapper input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #dbdee1;
+    font-size: 16px;
+    padding: 16px 0;
+    outline: none;
+}
+
+.send-request-btn {
+    background-color: #5865f2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.send-request-btn:hover {
+    background-color: #4752c4;
+}
+
+.add-friend-msg {
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.add-friend-msg.success { color: #2dc770; }
+.add-friend-msg.error { color: #da373c; }
+
+
+/* Kanal başlıqları üçün dizayn */
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 10px 5px 15px;
+    color: #949ba4;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.add-channel-btn {
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.add-channel-btn:hover {
+    color: #dbdee1;
+}
+
+/* Kanal sətirləri */
+.channel-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 2px 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #949ba4;
+}
+
+.channel-item:hover, .channel-item.active {
+    background-color: #3f4147;
+    color: #dbdee1;
+}
+
+.channel-name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Ayarlar çarxı - normalda gizli, hover edəndə görünür */
+.channel-settings-icon {
+    font-size: 14px;
+    display: none;
+    transition: 0.2s;
+}
+
+.channel-item:hover .channel-settings-icon {
+    display: block;
+}
+
+.channel-settings-icon:hover {
+    color: #ffffff;
+}
+
+/* Discord Orijinal Silmək Düyməsi Stili */
+.btn-delete-discord {
+    background-color: transparent;
+    color: #da373c; /* Discord-un qırmızı rəngi */
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s ease;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+/* Üzərinə siçan gələndə xəfif qırmızı fon və tündləşmə */
+.btn-delete-discord:hover {
+    background-color: rgba(218, 55, 60, 0.1);
+    text-decoration: underline;
+}
+
+.btn-delete-discord:active {
+    background-color: rgba(218, 55, 60, 0.2);
 }

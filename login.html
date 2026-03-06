@@ -81,6 +81,21 @@
     </div>
 
     <script>
+
+// TOKENİN İÇİNİ OXUYAN FUNKSİYA
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
+}
+
         // --- 1. MODE DƏYİŞMƏK (Login <-> Register) ---
         function toggleMode() {
             const loginForm = document.getElementById('login-form');
@@ -107,80 +122,114 @@
             }
         }
 
-        // --- 2. QEYDİYYAT MƏNTİQİ ---
-        function handleRegister() {
-            const email = document.getElementById('reg-email').value;
-            const username = document.getElementById('reg-username').value;
-            const pass = document.getElementById('reg-password').value;
-            const confirmPass = document.getElementById('reg-confirm').value;
-            const errorBox = document.getElementById('reg-error');
+        // --- 2. QEYDİYYAT MƏNTİQİ (API İLƏ) ---
+async function handleRegister() {
+    const email = document.getElementById('reg-email').value;
+    const username = document.getElementById('reg-username').value;
+    const pass = document.getElementById('reg-password').value;
+    const confirmPass = document.getElementById('reg-confirm').value;
+    const errorBox = document.getElementById('reg-error');
 
-            // Boşluq yoxlanışı
-            if (!email || !username || !pass || !confirmPass) {
-                errorBox.innerText = "Bütün xanaları doldurun!";
-                errorBox.style.display = "block";
-                return;
-            }
+    if (!email || !username || !pass || !confirmPass) {
+        errorBox.innerText = "Bütün xanaları doldurun!";
+        errorBox.style.display = "block";
+        return;
+    }
 
-            // Şifrə uyğunluğu
-            if (pass !== confirmPass) {
-                errorBox.innerText = "Şifrələr eyni deyil!";
-                errorBox.style.display = "block";
-                return;
-            }
+    if (pass !== confirmPass) {
+        errorBox.innerText = "Şifrələr eyni deyil!";
+        errorBox.style.display = "block";
+        return;
+    }
 
-            // İstifadəçi artıq varmı? (Sadə yoxlama)
-            if (localStorage.getItem("user_" + email)) {
-                errorBox.innerText = "Bu email artıq qeydiyyatdan keçib!";
-                errorBox.style.display = "block";
-                return;
-            }
-
-            // YADDAŞA YAZ (DATABASE SİMULYASİYASI)
-            const userData = {
+    try {
+        // BACK-END-Ə MƏLUMAT GÖNDƏRİRİK
+        const response = await fetch("https://localhost:7203/api/auth/register", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
                 username: username,
+                email: email,
                 password: pass
-            };
-            localStorage.setItem("user_" + email, JSON.stringify(userData));
+            })
+        });
 
+        if (response.ok) {
             alert("Qeydiyyat uğurludur! İndi giriş edə bilərsiniz.");
             toggleMode(); // Login səhifəsinə atır
+        } else {
+            const errorData = await response.json();
+            // C#-dan gələn xətanı göstəririk
+            errorBox.innerText = errorData[0]?.description || "Qeydiyyat zamanı xəta baş verdi.";
+            errorBox.style.display = "block";
         }
+    } catch (error) {
+        errorBox.innerText = "Serverlə əlaqə qurula bilmədi. Back-end işləyir?";
+        errorBox.style.display = "block";
+    }
+}
 
-        // --- 3. GİRİŞ MƏNTİQİ ---
-        function handleLogin() {
-            const email = document.getElementById('login-email').value;
-            const pass = document.getElementById('login-password').value;
-            const errorBox = document.getElementById('login-error');
+// --- 3. GİRİŞ MƏNTİQİ (API İLƏ) ---
+async function handleLogin() {
+    const email = document.getElementById('login-email').value; // Səndə input type email-dir, amma username gözləyirik. Fərqi yoxdur.
+    const pass = document.getElementById('login-password').value;
+    const errorBox = document.getElementById('login-error');
 
-            if (!email || !pass) {
-                errorBox.innerText = "Xanaları doldurun!";
-                errorBox.style.display = "block";
-                return;
-            }
+    if (!email || !pass) {
+        errorBox.innerText = "Xanaları doldurun!";
+        errorBox.style.display = "block";
+        return;
+    }
 
-            // Yaddaşdan oxu
-            const storedUser = localStorage.getItem("user_" + email);
-            
-            if (storedUser) {
-                const userData = JSON.parse(storedUser);
-                
-                // Şifrəni yoxla
-                if (userData.password === pass) {
-                    // Uğurlu Giriş!
-                    localStorage.setItem("isLoggedIn", "true");
-                    localStorage.setItem("username", userData.username); // Adı yadda saxla
-                    
-                    window.location.href = "index.html"; // Spikə keç
-                } else {
-                    errorBox.innerText = "Şifrə yanlışdır!";
-                    errorBox.style.display = "block";
-                }
-            } else {
-                errorBox.innerText = "İstifadəçi tapılmadı! Qeydiyyatdan keçin.";
-                errorBox.style.display = "block";
-            }
+    try {
+        // BACK-END-Ə GİRİŞ İSTƏYİ GÖNDƏRİRİK
+        const response = await fetch("https://localhost:7203/api/auth/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                email: email, // API email gözləyir
+                password: pass
+            })
+        });
+
+      if (response.ok) {
+    const data = await response.json();
+    
+    // 1. Tokeni yaddaşa yazırıq
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("isLoggedIn", "true");
+    
+    // 2. Tokenin içini oxuyuruq
+    const decodedToken = parseJwt(data.token);
+    
+    // 3. C#-ın içinə qoyduğu əsl username-i tapırıq (.NET adətən uzun adla saxlayır)
+    let realUsername = email; // Tapmasa, çökməsin deyə ehtiyat üçün email qalır
+    if (decodedToken) {
+        realUsername = decodedToken["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] 
+                    || decodedToken.unique_name 
+                    || decodedToken.name 
+                    || email;
+    }
+    
+    // 4. Əsl username-i yaddaşa yazırıq!
+    localStorage.setItem("username", realUsername); 
+    
+    window.location.href = "index.html"; // Uğurlu giriş!
+}
+        else {
+            const errorData = await response.json();
+            errorBox.innerText = errorData.message || "İstifadəçi adı və ya şifrə yanlışdır!";
+            errorBox.style.display = "block";
         }
+    } catch (error) {
+        errorBox.innerText = "Serverlə əlaqə qurula bilmədi. Back-end işləyir?";
+        errorBox.style.display = "block";
+    }
+}
     </script>
 </body>
 </html>

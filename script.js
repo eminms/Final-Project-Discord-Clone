@@ -1,3 +1,5 @@
+const API_BASE_URL = "https://localhost:7203/api";
+
 // ==========================================
 // 1. AYARLAR & SƏS URL-LƏRİ
 // ==========================================
@@ -14,7 +16,7 @@ const SOUND_LEAVE = "https://www.myinstants.com/media/sounds/discord-leave.mp3";
 const SOUND_MUTE = "https://www.myinstants.com/media/sounds/discord-mute.mp3";
 const SOUND_UNMUTE = "https://www.myinstants.com/media/sounds/discord-unmute.mp3";
 const SOUND_MSG = "https://www.myinstants.com/media/sounds/discord-notification.mp3";
-const SOUND_ON = "https://www.myinstants.com/media/sounds/discord-unmute.mp3"; // Səs effektlərin yoxdursa default olaraq bunu istifadə edək
+const SOUND_ON = "https://www.myinstants.com/media/sounds/discord-unmute.mp3"; 
 const SOUND_OFF = "https://www.myinstants.com/media/sounds/discord-mute.mp3";
 
 // Agora Client Yaradılması (Tək client, ən stabil versiya)
@@ -192,7 +194,6 @@ window.toggleCamera = async function () {
     updateControlsUI();
 };
 
-// --- EKRAN PAYLAŞIMI (STABİL VERSİYA) ---
 // --- EKRAN PAYLAŞIMI (STABİL VERSİYA) ---
 window.toggleScreen = async function () {
     if (!localAudioTrack) { alert("Əvvəlcə kanala qoşulun!"); return; }
@@ -437,7 +438,7 @@ function botReply(text) {
 }
 
 // ==========================================
-// 7. SERVER YARATMA & DƏYİŞDİRMƏ
+// 7. SERVER YARATMA & DƏYİŞDİRMƏ (DÜZƏLDİLDİ!)
 // ==========================================
 
 const modal = document.getElementById('server-modal');
@@ -480,6 +481,7 @@ if (fileInput) {
     };
 }
 
+// --- ƏSAS DÜZƏLİŞ BURADADIR ---
 window.createNewServer = function () {
     const serverName = nameInput.value;
     if (!serverName) {
@@ -497,11 +499,21 @@ window.createNewServer = function () {
         </div>
     `;
 
-    const addIconDiv = document.querySelector('.add-icon');
-    addIconDiv.parentElement.insertBefore(
-        document.createRange().createContextualFragment(newServerHTML),
-        addIconDiv
-    );
+    // 1. Sol panelin əsas konteynerini tapırıq
+    const serversNav = document.querySelector('.servers-nav'); 
+    
+    // 2. Add icon-un öz div-ini tapırıq (Bunun üstünə əlavə edəcəyik)
+    const addIconWrapper = addServerBtn.closest('.server-wrapper');
+
+    // 3. Əgər addIconWrapper tapıldırsa, yeni serveri ondan ƏVVƏLƏ əlavə edirik
+    if (serversNav && addIconWrapper) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newServerHTML.trim();
+        const newServerElement = tempDiv.firstChild;
+        
+        serversNav.insertBefore(newServerElement, addIconWrapper);
+    }
+
     closeModal();
 };
 
@@ -611,4 +623,125 @@ function removeLocalScreenCard() {
      if (card) {
          card.remove(); 
      }
+}
+
+// ==========================================
+// DOSTLAR MENYUSU ÜÇÜN TAB DƏYİŞDİRMƏ VƏ AXTARIŞ
+// ==========================================
+function switchFriendTab(element, tabName) {
+    const tabs = document.querySelectorAll('.friend-tab');
+    tabs.forEach(tab => tab.classList.remove('active'));
+    element.classList.add('active');
+
+    document.getElementById('friends-list-container').style.display = 'none';
+    document.getElementById('add-friend-container').style.display = 'none';
+
+    if (tabName === 'add') {
+        document.getElementById('add-friend-container').style.display = 'flex';
+    } else {
+        document.getElementById('friends-list-container').style.display = 'flex';
+    }
+}
+
+function sendFriendRequestUI() {
+    const input = document.getElementById('friend-username-input');
+    const msgBox = document.getElementById('add-friend-message');
+    const username = input.value.trim();
+
+    if (!username) {
+        msgBox.className = 'add-friend-msg error';
+        msgBox.innerText = 'Zəhmət olmasa istifadəçi adını yazın!';
+        return;
+    }
+
+    msgBox.className = 'add-friend-msg success';
+    msgBox.innerText = `Uğurlu! "${username}" adlı istifadəçiyə dostluq istəyi göndərildi.`;
+    input.value = ''; 
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const addFriendBtn = document.querySelector('.friend-tab.add-friend-btn');
+    if(addFriendBtn) {
+        switchFriendTab(addFriendBtn, 'add');
+    }
+});
+
+// ==========================================
+// KANAL İDARƏETMƏ (MODALLAR İLƏ)
+// ==========================================
+
+let currentChannelType = ''; // 'text' və ya 'voice' olacağını yadda saxlayır
+let currentEditingChannel = null; // Üzərində əməliyyat edilən kanalı yadda saxlayır
+
+// Modalları bağlamaq üçün ortaq funksiya
+function closeChannelModals() {
+    document.getElementById('create-channel-modal').style.display = 'none';
+    document.getElementById('edit-channel-modal').style.display = 'none';
+}
+
+// 1. + düyməsinə basanda Yarat Modalını açır
+function openCreateChannelModal(type) {
+    currentChannelType = type;
+    document.getElementById('new-channel-name').value = ''; // İçini təmizlə
+    document.getElementById('create-channel-modal').style.display = 'flex';
+}
+
+// 2. Yarat Modalında "Yarat" düyməsinə basanda
+function confirmCreateChannel() {
+    const channelName = document.getElementById('new-channel-name').value.trim();
+    if (!channelName) {
+        alert("Kanal adını yazın!");
+        return;
+    }
+
+    const listId = currentChannelType === 'text' ? 'text-channels-list' : 'voice-channels-list';
+    const listContainer = document.getElementById(listId);
+    
+    // Mətn və ya Səs kanalına görə ikon və class-ları təyin edirik
+    const iconClass = currentChannelType === 'text' ? 'fa-hashtag' : 'fa-volume-high';
+    const onClickAttr = currentChannelType === 'voice' ? 'onclick="joinChannel()"' : '';
+    const itemClass = currentChannelType === 'voice' ? 'channel-item voice-channel' : 'channel-item';
+
+    const newChannelHTML = `
+        <div class="${itemClass}" ${onClickAttr}>
+            <div class="channel-name-wrapper">
+                <i class="fa-solid ${iconClass}"></i>
+                <span>${channelName.toLowerCase()}</span>
+            </div>
+            <i class="fa-solid fa-gear channel-settings-icon" onclick="event.stopPropagation(); openEditChannelModal(this)"></i>
+        </div>
+    `;
+    
+    listContainer.insertAdjacentHTML('beforeend', newChannelHTML);
+    closeChannelModals(); // Modalı bağla
+}
+
+// 3. ⚙️ (Çarx) düyməsinə basanda Redaktə Modalını açır
+function openEditChannelModal(element) {
+    currentEditingChannel = element.closest('.channel-item'); // Seçilən kanalı tapır
+    const nameSpan = currentEditingChannel.querySelector('.channel-name-wrapper span');
+    
+    document.getElementById('edit-channel-name').value = nameSpan.innerText; // Köhnə adı inputa yaz
+    document.getElementById('edit-channel-modal').style.display = 'flex';
+}
+
+// 4. Redaktə Modalında "Yadda Saxla" düyməsinə basanda
+function confirmEditChannel() {
+    const newName = document.getElementById('edit-channel-name').value.trim();
+    if (!newName) {
+        alert("Kanal adı boş ola bilməz!");
+        return;
+    }
+
+    // Yeni adı HTML-ə tətbiq et
+    const nameSpan = currentEditingChannel.querySelector('.channel-name-wrapper span');
+    nameSpan.innerText = newName.toLowerCase();
+    closeChannelModals();
+}
+
+// 5. Redaktə Modalında "Kanalı Sil" (Qırmızı) düyməyə basanda
+function confirmDeleteChannel() {
+    // İstəsən bura confirm() də qoya bilərsən, amma onsuz da qırmızı düymədir deyə birbaşa sildirdim
+    currentEditingChannel.remove();
+    closeChannelModals();
 }

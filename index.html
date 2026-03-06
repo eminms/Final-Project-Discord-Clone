@@ -52,32 +52,55 @@
         </header>
 
         <div class="channels-list">
-            <div class="category">
-                <i class="fa-solid fa-angle-down"></i>
-                <span>TEXT CHANNELS</span>
+            
+            <div class="category-header">
+                <div class="category-title">
+                    <i class="fa-solid fa-angle-down"></i>
+                    <span>TEXT CHANNELS</span>
+                </div>
+                <i class="fa-solid fa-plus add-channel-btn" onclick="openCreateChannelModal('text')"></i>
             </div>
             
-            <div class="channel-item active" data-channel="general">
-                <i class="fa-solid fa-hashtag"></i>
-                <span>general</span>
-            </div>
-            <div class="channel-item" data-channel="help">
-                <i class="fa-solid fa-hashtag"></i>
-                <span>help</span>
-            </div>
-            <div class="channel-item" data-channel="off-topic">
-                <i class="fa-solid fa-hashtag"></i>
-                <span>off-topic</span>
+            <div id="text-channels-list">
+                <div class="channel-item active" data-channel="general">
+                    <div class="channel-name-wrapper">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <span>general</span>
+                    </div>
+                    <i class="fa-solid fa-gear channel-settings-icon" onclick="openEditChannelModal(this)"></i>
+                </div>
+                <div class="channel-item" data-channel="help">
+                    <div class="channel-name-wrapper">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <span>help</span>
+                    </div>
+                    <i class="fa-solid fa-gear channel-settings-icon" onclick="openEditChannelModal(this)"></i>
+                </div>
+                <div class="channel-item" data-channel="off-topic">
+                    <div class="channel-name-wrapper">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <span>off-topic</span>
+                    </div>
+                    <i class="fa-solid fa-gear channel-settings-icon" onclick="openEditChannelModal(this)"></i>
+                </div>
             </div>
 
-            <div class="category voice">
-                <i class="fa-solid fa-angle-down"></i>
-                <span>VOICE CHANNELS</span>
+            <div class="category-header" style="margin-top: 15px;">
+                <div class="category-title">
+                    <i class="fa-solid fa-angle-down"></i>
+                    <span>VOICE CHANNELS</span>
+                </div>
+                <i class="fa-solid fa-plus add-channel-btn" onclick="openCreateChannelModal('voice')"></i>
             </div>
             
-            <div class="channel-item voice-channel" onclick="joinChannel()">
-                <i class="fa-solid fa-volume-high"></i>
-                <span>Lounge</span>
+            <div id="voice-channels-list">
+                <div class="channel-item voice-channel" onclick="joinChannel()">
+                    <div class="channel-name-wrapper">
+                        <i class="fa-solid fa-volume-high"></i>
+                        <span>Lounge</span>
+                    </div>
+                    <i class="fa-solid fa-gear channel-settings-icon" onclick="event.stopPropagation(); openEditChannelModal(this)"></i>
+                </div>
             </div>
             
             <div id="voice-users-sidebar" class="voice-users-sidebar"></div>
@@ -99,42 +122,82 @@
         </div>
 
         <div class="user-panel">
-        <div class="user-info">
-        <div class="avatar-wrapper">
-            <img src="https://ui-avatars.com/api/?name=User&background=random" alt="User" id="current-user-avatar">
-            <div class="status-dot"></div>
-        </div>
-        <div class="name-tag">
-            <div class="username" id="current-username">Mən</div>
-            <div class="discriminator">#1234</div>
-        </div>
-    </div>
+            <div class="user-info">
+                <div class="avatar-wrapper">
+                    <img src="https://ui-avatars.com/api/?name=User&background=random" alt="User" id="current-user-avatar">
+                    <div class="status-dot"></div>
+                </div>
+                <div class="name-tag">
+                    <div class="username" id="current-username">Mən</div>
+                    <div class="discriminator">#1234</div>
+                </div>
+            </div>
 
-    <div class="user-actions">
-        <i class="fa-solid fa-microphone" id="mic-btn" onclick="toggleMic()"></i>
-        <i class="fa-solid fa-headphones"></i>
-        <i class="fa-solid fa-gear" onclick="openSettings()" title="Ayarlar"></i>
-    </div>
-</div>
+            <div class="user-actions">
+                <i class="fa-solid fa-microphone" id="mic-btn" onclick="toggleMic()"></i>
+                <i class="fa-solid fa-headphones"></i>
+                <i class="fa-solid fa-gear" onclick="openSettings()" title="Ayarlar"></i>
+            </div>
+        </div>
     </aside>
 
     <main class="chat-area">
-        <header class="chat-header">
-            <div class="header-left">
-                <i class="fa-solid fa-hashtag"></i>
-                <h3 id="chat-title">general</h3>
-                <span class="topic">Ümumi müzakirələr üçün</span>
-            </div>
-            <div class="header-right">
-                <i class="fa-solid fa-bell"></i>
-                <i class="fa-solid fa-thumbtack"></i>
-                <i class="fa-solid fa-users"></i>
-                <div class="search-bar" style="display: flex; align-items: center; background: #1e1f22; padding: 2px 8px; border-radius: 4px; height: 24px;">
-                    <input type="text" placeholder="Search" style="background: transparent; border: none; color: white; width: 120px; font-size: 12px; outline: none;">
-                    <i class="fa-solid fa-magnifying-glass" style="font-size: 12px;"></i>
-                </div>
-            </div>
-        </header>
+       <header class="chat-header friends-header" id="friends-header">
+    <div class="header-left friends-header-left">
+        <i class="fa-solid fa-user-group friends-icon"></i>
+        <h3>Dostlar</h3>
+        <div class="vertical-separator"></div>
+        <div class="friends-tabs">
+            <button class="friend-tab active" onclick="switchFriendTab(this, 'online')">Onlayn</button>
+            <button class="friend-tab" onclick="switchFriendTab(this, 'all')">Hamısı</button>
+            <button class="friend-tab" onclick="switchFriendTab(this, 'pending')">Gözləyənlər</button>
+            <button class="friend-tab add-friend-btn" onclick="switchFriendTab(this, 'add')">Dost Əlavə Et</button>
+        </div>
+    </div>
+    <div class="header-right">
+        <i class="fa-solid fa-inbox"></i>
+        <i class="fa-solid fa-circle-question"></i>
+    </div>
+</header>
+
+<header class="chat-header" id="channel-header" style="display: none;">
+    <div class="header-left">
+        <i class="fa-solid fa-hashtag"></i>
+        <h3 id="chat-title">general</h3>
+        <span class="topic">Ümumi müzakirələr üçün</span>
+    </div>
+    <div class="header-right">
+        <i class="fa-solid fa-bell"></i>
+        <i class="fa-solid fa-thumbtack"></i>
+        <i class="fa-solid fa-users"></i>
+        <div class="search-bar" style="display: flex; align-items: center; background: #1e1f22; padding: 2px 8px; border-radius: 4px; height: 24px;">
+            <input type="text" placeholder="Search" style="background: transparent; border: none; color: white; width: 120px; font-size: 12px; outline: none;">
+            <i class="fa-solid fa-magnifying-glass" style="font-size: 12px;"></i>
+        </div>
+    </div>
+</header>
+
+<div id="friends-view" class="friends-view">
+    
+    <div id="friends-list-container" class="friends-content" style="display: none;">
+        <div class="empty-state">
+            <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+            <p>Burada hələlik heç kim yoxdur.</p>
+        </div>
+    </div>
+
+    <div id="add-friend-container" class="friends-content add-friend-section">
+        <h2 class="add-friend-title">DOST ƏLAVƏ ET</h2>
+        <p class="add-friend-desc">Discord istifadəçi adını yazaraq dost əlavə edə bilərsən.</p>
+        
+        <div class="add-friend-input-wrapper">
+            <input type="text" id="friend-username-input" placeholder="İstifadəçi adını yaz.">
+            <button class="send-request-btn" onclick="sendFriendRequestUI()">Dostluq İstəyi Göndər</button>
+        </div>
+        <div id="add-friend-message" class="add-friend-msg"></div>
+    </div>
+
+</div>
 
         <div class="messages-container" id="messages">
             <div class="message">
@@ -292,7 +355,12 @@
                     </select>
                 </div>
 
-                <div class="settings-actions">
+                    <div class="input-group">
+                        <label>KAMERA CİHAZI</label>
+                        <select id="cam-select" class="device-select">
+                            <option value="default">Default Device</option>
+                        </select>
+                    </div> <div class="settings-actions">
                     <button class="btn-cancel" onclick="closeSettings()">Ləğv et</button>
                     <button class="btn-save" onclick="saveSettings()">Yadda Saxla</button>
                 </div>
@@ -304,6 +372,51 @@
                 <i class="fa-solid fa-xmark"></i>
             </div>
             <span>ESC</span>
+        </div>
+    </div>
+</div>
+
+<div id="create-channel-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Kanal Yarat</h2>
+            <p>Yeni kanalın adını daxil edin</p>
+        </div>
+        <div class="modal-body">
+            <div class="input-group">
+                <label>KANAL ADI</label>
+                <input type="text" id="new-channel-name" placeholder="yeni-kanal">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeChannelModals()">Ləğv et</button>
+            <button class="btn-create" onclick="confirmCreateChannel()">Yarat</button>
+        </div>
+    </div>
+</div>
+
+<div id="edit-channel-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Kanalı Redaktə Et</h2>
+        </div>
+        <div class="modal-body">
+            <div class="input-group">
+                <label>YENİ KANAL ADI</label>
+                <input type="text" id="edit-channel-name" placeholder="kanal-adi">
+            </div>
+        </div>
+        
+        <div class="modal-footer" style="justify-content: space-between; align-items: center;">
+            
+            <button class="btn-delete-discord" onclick="confirmDeleteChannel()">
+                Kanalı Sil <i class="fa-solid fa-trash" style="margin-left: 5px;"></i>
+            </button>
+            
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-cancel" onclick="closeChannelModals()">Ləğv et</button>
+                <button class="btn-create" onclick="confirmEditChannel()">Yadda Saxla</button>
+            </div>
         </div>
     </div>
 </div>
