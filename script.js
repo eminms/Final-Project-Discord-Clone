@@ -542,6 +542,11 @@ window.switchServer = function (element) {
 
     const serverTitle = document.getElementById('current-server-name');
     if (serverTitle) serverTitle.innerText = element.getAttribute('data-name');
+
+    // YENİ: Seçilən serverin ID-sini yadda saxlayırıq
+    currentServerId = element.getAttribute('data-id');
+    
+    // İstəsən gələcəkdə bura "loadServerChannels(currentServerId)" əlavə edib serverin kanallarını çəkə bilərik.
 };
 
 // ==========================================
@@ -687,6 +692,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let currentChannelType = ''; // 'text' və ya 'voice' olacağını yadda saxlayır
 let currentEditingChannel = null; // Üzərində əməliyyat edilən kanalı yadda saxlayır
+let currentServerId = null; // Seçili serverin ID-sini yadda saxlayır
+let currentEditingChannelId = null; // Redaktə edilən kanalın ID-sini tutmaq üçün
 
 // Modalları bağlamaq üçün ortaq funksiya
 function closeChannelModals() {
@@ -702,33 +709,140 @@ function openCreateChannelModal(type) {
 }
 
 // 2. Yarat Modalında "Yarat" düyməsinə basanda
-function confirmCreateChannel() {
+// 1. KANAL YARATMA (POST)
+async function confirmCreateChannel() {
     const channelName = document.getElementById('new-channel-name').value.trim();
+    
     if (!channelName) {
         alert("Kanal adını yazın!");
         return;
     }
+    if (!currentServerId) {
+        alert("Zəhmət olmasa əvvəlcə bir server seçin!");
+        return;
+    }
 
-    const listId = currentChannelType === 'text' ? 'text-channels-list' : 'voice-channels-list';
-    const listContainer = document.getElementById(listId);
+    const token = localStorage.getItem("token");
     
-    // Mətn və ya Səs kanalına görə ikon və class-ları təyin edirik
-    const iconClass = currentChannelType === 'text' ? 'fa-hashtag' : 'fa-volume-high';
-    const onClickAttr = currentChannelType === 'voice' ? 'onclick="joinChannel()"' : '';
-    const itemClass = currentChannelType === 'voice' ? 'channel-item voice-channel' : 'channel-item';
+    // C# tərəfində Enum olaraq Text=0, Voice=1 kimi qəbul edilirsə
+    const typeValue = currentChannelType === 'text' ? 0 : 1; 
 
-    const newChannelHTML = `
-        <div class="${itemClass}" ${onClickAttr}>
-            <div class="channel-name-wrapper">
-                <i class="fa-solid ${iconClass}"></i>
-                <span>${channelName.toLowerCase()}</span>
-            </div>
-            <i class="fa-solid fa-gear channel-settings-icon" onclick="event.stopPropagation(); openEditChannelModal(this)"></i>
-        </div>
-    `;
+    try {
+        const response = await fetch(`${API_BASE_URL}/Channel/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                Name: channelName,
+                Type: typeValue,
+                ServerId: currentServerId
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Baza təsdiqlədi, indi UI-a (HTML) əlavə edirik!
+            const listId = currentChannelType === 'text' ? 'text-channels-list' : 'voice-channels-list';
+            const listContainer = document.getElementById(listId);
+            
+            const iconClass = currentChannelType === 'text' ? 'fa-hashtag' : 'fa-volume-high';
+            const onClickAttr = currentChannelType === 'voice' ? 'onclick="joinChannel()"' : '';
+            const itemClass = currentChannelType === 'voice' ? 'channel-item voice-channel' : 'channel-item';
+
+            // DİQQƏT: HTML-ə data-id="${data.channelId}" əlavə etdik ki, sonra silə və ya redaktə edə bilək
+            const newChannelHTML = `
+                <div class="${itemClass}" ${onClickAttr} data-id="${data.channelId}">
+                    <div class="channel-name-wrapper">
+                        <i class="fa-solid ${iconClass}"></i>
+                        <span>${channelName.toLowerCase()}</span>
+                    </div>
+                    <i class="fa-solid fa-gear channel-settings-icon" onclick="event.stopPropagation(); openEditChannelModal(this)"></i>
+                </div>
+            `;
+            
+            listContainer.insertAdjacentHTML('beforeend', newChannelHTML);
+            closeChannelModals(); 
+        } else {
+            const errorData = await response.json();
+            alert("Xəta: " + (errorData.message || "Kanal yaradıla bilmədi! Rollarınızı yoxlayın."));
+        }
+    } catch (error) {
+        console.error("Kanal yaratma xətası:", error);
+    }
+}
+
+// 2. REDAKTƏ MODALINI AÇANDA ID-Nİ GÖTÜR
+function openEditChannelModal(element) {
+    currentEditingChannel = element.closest('.channel-item'); 
+    currentEditingChannelId = currentEditingChannel.getAttribute('data-id'); // HTML-dən ID-ni çəkirik
     
-    listContainer.insertAdjacentHTML('beforeend', newChannelHTML);
-    closeChannelModals(); // Modalı bağla
+    const nameSpan = currentEditingChannel.querySelector('.channel-name-wrapper span');
+    
+    document.getElementById('edit-channel-name').value = nameSpan.innerText; 
+    document.getElementById('edit-channel-modal').style.display = 'flex';
+}
+
+// 3. KANALI REDAKTƏ ET (PUT)
+async function confirmEditChannel() {
+    const newName = document.getElementById('edit-channel-name').value.trim();
+    
+    if (!newName) { alert("Kanal adı boş ola bilməz!"); return; }
+    if (!currentEditingChannelId) { alert("Xəta: Kanal ID-si tapılmadı!"); return; }
+
+    const token = localStorage.getItem("token");
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/Channel/update/${currentEditingChannelId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ Name: newName })
+        });
+
+        if (response.ok) {
+            // UI-da adı dəyişirik
+            const nameSpan = currentEditingChannel.querySelector('.channel-name-wrapper span');
+            nameSpan.innerText = newName.toLowerCase();
+            closeChannelModals();
+        } else {
+            const errorData = await response.json();
+            alert("Xəta: " + (errorData.message || "Kanal dəyişdirilə bilmədi!"));
+        }
+    } catch (error) {
+        console.error("Redaktə xətası:", error);
+    }
+}
+
+// 4. KANALI SİL (DELETE)
+async function confirmDeleteChannel() {
+    if (!currentEditingChannelId) return;
+
+    const token = localStorage.getItem("token");
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/Channel/delete/${currentEditingChannelId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            // UI-dan silirik
+            currentEditingChannel.remove();
+            closeChannelModals();
+        } else {
+            const errorData = await response.json();
+            alert("Xəta: " + (errorData.message || "Kanalı silmək üçün icazəniz yoxdur!"));
+        }
+    } catch (error) {
+        console.error("Silmə xətası:", error);
+    }
 }
 
 // 3. ⚙️ (Çarx) düyməsinə basanda Redaktə Modalını açır
