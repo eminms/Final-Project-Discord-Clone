@@ -48,6 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (userAvatar) {
         userAvatar.src = `https://ui-avatars.com/api/?name=${currentUserName}&background=random`;
     }
+    loadMyServers();
 });
 
 // ==========================================
@@ -62,7 +63,7 @@ window.joinChannel = async function () {
         playSound(SOUND_JOIN);
 
         // Agora-ya qoşul
-        const uid = await client.join(APP_ID, CHANNEL, TOKEN, null);
+        const uid = await client.join(APP_ID, CHANNEL, TOKEN, currentUserName);
 
         // Səsi yaradıb yayınlayırıq
         localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
@@ -286,15 +287,16 @@ client.on("user-published", async (user, mediaType) => {
     if (mediaType === "audio") {
         user.audioTrack.play();
         playSound(SOUND_JOIN);
-        addUserToVoiceUI(`User ${user.uid}`, false, user.uid);
+        // "User " sözünü sildik, çünki user.uid artıq əsl adımızdır
+        addUserToVoiceUI(user.uid, false, user.uid); 
     }
 
     if (mediaType === "video") {
-        addUserToVoiceUI(`User ${user.uid}`, false, user.uid);
+        // "User " sözünü sildik
+        addUserToVoiceUI(user.uid, false, user.uid);
         playVideoInCard(`remote-user-${user.uid}`, user.videoTrack);
     }
 });
-
 client.on("user-unpublished", (user, mediaType) => {
     if (mediaType === "video") {
         stopVideoInCard(`remote-user-${user.uid}`);
@@ -384,58 +386,8 @@ if (messageInput) {
     });
 }
 
-function sendMessage(text) {
-    const now = new Date();
-    const timeString = now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
 
-    const messageHTML = `
-        <div class="message">
-            <div class="message-avatar">
-                <img src="https://ui-avatars.com/api/?name=${currentUserName}&background=random" alt="User">
-            </div>
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="msg-username">${currentUserName}</span>
-                    <span class="msg-time">Bu gün, ${timeString}</span>
-                </div>
-                <div class="msg-text">${text}</div>
-            </div>
-        </div>
-    `;
 
-    messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-    if (text.toLowerCase().includes('salam')) {
-        setTimeout(() => {
-            playSound(SOUND_MSG);
-            botReply("Salam! Əvvəlki stabil versiyaya qayıtdıq. Yoxlaya bilərsən!");
-        }, 1000);
-    }
-}
-
-function botReply(text) {
-    const now = new Date();
-    const timeString = now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
-
-    const botHTML = `
-        <div class="message">
-            <div class="message-avatar">
-                <img src="https://ui-avatars.com/api/?name=Clyde+Bot&background=7289da&color=fff" alt="Bot">
-            </div>
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="msg-username" style="color: #5865F2;">Clyde Bot <span style="background:#5865F2; color:white; font-size:10px; padding:2px 4px; border-radius:3px;">BOT</span></span>
-                    <span class="msg-time">Bu gün, ${timeString}</span>
-                </div>
-                <div class="msg-text">${text}</div>
-            </div>
-        </div>
-    `;
-
-    messagesContainer.insertAdjacentHTML('beforeend', botHTML);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
 
 // ==========================================
 // 7. SERVER YARATMA & DƏYİŞDİRMƏ (DÜZƏLDİLDİ!)
@@ -481,31 +433,24 @@ if (fileInput) {
     };
 }
 
-// --- ƏSAS DÜZƏLİŞ BURADADIR ---
-window.createNewServer = function () {
-    const serverName = nameInput.value;
-    if (!serverName) {
-        alert("Zəhmət olmasa server adı yazın!");
-        return;
-    }
-    const finalImage = uploadedImageURL || `https://ui-avatars.com/api/?name=${serverName}&background=random`;
+// ==========================================
+// 7. SERVER YARATMA & BAZAYA YAZMA (YENİLƏNDİ)
+// ==========================================
 
+// Serveri UI-a (sol panelə) əlavə edən köməkçi funksiya
+window.addServerToUI = function(serverId, serverName, imageUrl) {
     const newServerHTML = `
         <div class="server-wrapper">
             <div class="pill"></div>
-            <div class="server-icon" data-name="${serverName}" onclick="switchServer(this)">
-                <img src="${finalImage}" alt="Server">
+            <div class="server-icon" data-id="${serverId}" data-name="${serverName}" onclick="switchServer(this)">
+                <img src="${imageUrl}" alt="Server">
             </div>
         </div>
     `;
 
-    // 1. Sol panelin əsas konteynerini tapırıq
     const serversNav = document.querySelector('.servers-nav'); 
-    
-    // 2. Add icon-un öz div-ini tapırıq (Bunun üstünə əlavə edəcəyik)
     const addIconWrapper = addServerBtn.closest('.server-wrapper');
 
-    // 3. Əgər addIconWrapper tapıldırsa, yeni serveri ondan ƏVVƏLƏ əlavə edirik
     if (serversNav && addIconWrapper) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = newServerHTML.trim();
@@ -513,8 +458,78 @@ window.createNewServer = function () {
         
         serversNav.insertBefore(newServerElement, addIconWrapper);
     }
+};
 
-    closeModal();
+// 1. YENİ SERVER YARATMAQ (POST)
+window.createNewServer = async function () {
+    const serverName = nameInput.value;
+    if (!serverName) {
+        alert("Zəhmət olmasa server adı yazın!");
+        return;
+    }
+
+    // Tokeni götürürük
+    const token = localStorage.getItem("token");
+    if (!token) {
+        alert("Token tapılmadı, zəhmət olmasa yenidən login olun!");
+        return;
+    }
+
+    try {
+        // Backend-ə (C#) məlumatları göndəririk
+        const response = await fetch(`${API_BASE_URL}/Server/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // [Authorize] üçün mütləqdir!
+            },
+            body: JSON.stringify({
+                Name: serverName,
+                Description: "Mənim yeni serverim", // İstəsən gələcəkdə bura input əlavə edərsən
+                ImageUrl: uploadedImageURL || ""
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Baza serveri uğurla yaratdı! İndi C#-dan gələn ID və Şəkillə onu ekrana çəkirik
+            addServerToUI(data.serverId, serverName, data.image);
+            closeModal();
+            
+        } else {
+            const errorData = await response.json();
+            alert("Xəta: " + (errorData.message || "Server yaradıla bilmədi"));
+        }
+    } catch (error) {
+        console.error("Server yaratma xətası:", error);
+        alert("Serverlə əlaqə qurulmadı!");
+    }
+};
+
+// 2. SƏHİFƏ YÜKLƏNƏNDƏ KÖHNƏ SERVERLƏRİ BAZADAN ÇƏKMƏK (GET)
+window.loadMyServers = async function() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/Server/joined-servers`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const servers = await response.json();
+            // Bazadan gələn hər bir serveri sol panelə düzürük
+            servers.forEach(server => {
+                addServerToUI(server.id, server.name, server.imageUrl);
+            });
+        }
+    } catch (error) {
+        console.error("Serverləri yükləmə xətası:", error);
+    }
 };
 
 window.switchServer = function (element) {
@@ -744,4 +759,258 @@ function confirmDeleteChannel() {
     // İstəsən bura confirm() də qoya bilərsən, amma onsuz da qırmızı düymədir deyə birbaşa sildirdim
     currentEditingChannel.remove();
     closeChannelModals();
+}
+
+// ==========================================
+// 12. SIGNALR CANLI CHAT BAĞLANTISI (TAM UYĞUN)
+// ==========================================
+
+const userToken = localStorage.getItem("token"); 
+let currentChannelId = "Lounge"; // Şimdilik standart bir kanal adı veririk
+let currentDMUser = null; // Hazırda kiminlə DM-də olduğumuzu tutacaq
+const myAvatar = `https://ui-avatars.com/api/?name=${currentUserName}&background=random`;
+
+// 1. URL-ə sənin istədiyin kimi "?username=..." əlavə etdik
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl(`https://localhost:7203/chatHub?username=${currentUserName}`, { 
+        accessTokenFactory: () => userToken
+    })
+    .withAutomaticReconnect()
+    .build();
+
+// 2. Mesaj gələndə (Server 3 məlumat qaytarır: username, avatarUrl, message)
+connection.on("ReceiveMessage", (senderName, avatarUrl, message) => {
+    const now = new Date();
+    const timeString = now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
+
+    const messageHTML = `
+        <div class="message">
+            <div class="message-avatar">
+                <img src="${avatarUrl}" alt="User">
+            </div>
+            <div class="message-content">
+                <div class="message-header">
+                    <span class="msg-username">${senderName}</span>
+                    <span class="msg-time">Bu gün, ${timeString}</span>
+                </div>
+                <div class="msg-text">${message}</div>
+            </div>
+        </div>
+    `;
+    // YENİ ƏLAVƏ EDİLƏN SƏTİR: Əgər fərqli otaqdayıqsa bildiriş çıxar
+    const currentRoom = getDirectChatRoomName(currentUserName, senderName);
+    if (senderName !== currentUserName && currentChannelId !== currentRoom && currentChannelId !== "Lounge") {
+        showNewMessageNotification(senderName);
+    } else {
+        // Eyni otaqdayıqsa sadəcə səs gəlsin
+        if (senderName !== currentUserName) playSound(SOUND_MSG);
+    }
+
+    messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Özüm göndərməmişəmsə səs gəlsin
+    if (senderName !== currentUserName) {
+        playSound(SOUND_MSG);
+    }
+});
+
+// 3. Bağlantını işə salırıq
+connection.start()
+    .then(() => {
+        console.log("✅ SignalR-ə uğurla qoşuldu!");
+        
+        // BAĞLANAN KİMİ MÜTLƏQ BİR KANALA QOŞULMALIDIR KI, MESAJLARI GÖRƏ BİLSİN
+        connection.invoke("JoinChannel", currentChannelId)
+            .then(() => console.log(`✅ ${currentChannelId} kanalına daxil oldunuz.`))
+            .catch(err => console.error("Kanal xətası:", err));
+    })
+    .catch(err => console.error("❌ SignalR Qoşulma Xətası: ", err));
+
+// 4. Mesaj Göndərmə
+window.sendMessage = function(text) {
+    if (connection.state === signalR.HubConnectionState.Connected) {
+        
+        // 🔥 ƏGƏR DM-DƏYİKSƏ YENİ FUNKSİYANİ ÇAĞIRIRIQ
+        if (currentDMUser) {
+            connection.invoke("SendDirectMessage", currentUserName, currentDMUser, myAvatar, text)
+                .catch(err => console.error("❌ DM göndərilmədi: ", err));
+        } 
+        // ƏGƏR ÜMUMİ KANALDAYIQSA KÖHNƏ FUNKSİYANİ ÇAĞIRIRIQ
+        else {
+            connection.invoke("SendMessage", currentChannelId, currentUserName, myAvatar, text)
+                .catch(err => console.error("❌ Mesaj göndərilmədi: ", err));
+        }
+            
+    } else {
+        alert("Serverə qoşulma gedir, zəhmət olmasa bir az gözləyin...");
+    }
+};
+
+
+// ==========================================
+// 13. ONLAYN İSTİFADƏÇİLƏRİN SİYAHISI (PRESENCE)
+// ==========================================
+
+// Onlayn olanların adlarını burada saxlayacağıq
+let onlineUsersList = [];
+
+// Siyahını HTML-də yeniləyən funksiya
+// 1. Siyahını yeniləyən funksiya (Köhnəsini bununla əvəz et)
+function renderOnlineMembers() {
+    const membersSidebar = document.querySelector('.members-sidebar');
+    if (!membersSidebar) return;
+
+    membersSidebar.innerHTML = '';
+    membersSidebar.innerHTML += `<div class="role-header">ONLINE — ${onlineUsersList.length}</div>`;
+
+    onlineUsersList.forEach(user => {
+        const colorStyle = user === currentUserName ? 'style="color: #e91e63;"' : '';
+        const userStatus = user === currentUserName ? 'Sən' : 'Onlayn';
+        
+        // DİQQƏT: Bura onclick="startDirectMessage('${user}')" əlavə etdik ki, üstünə basmaq olsun!
+        const memberHTML = `
+            <div class="member-item" onclick="startDirectMessage('${user}')" style="cursor: pointer;" title="Mesaj yazmaq üçün kliklə">
+                <div class="member-avatar-wrapper">
+                    <img src="https://ui-avatars.com/api/?name=${user}&background=random" alt="U">
+                    <div class="status-dot"></div>
+                </div>
+                <div class="member-info">
+                    <span class="member-name" ${colorStyle}>${user}</span>
+                    <span class="member-status">${userStatus}</span>
+                </div>
+            </div>
+        `;
+        membersSidebar.insertAdjacentHTML('beforeend', memberHTML);
+    });
+}
+
+// 1. Səhifəni açanda serverdən tam siyahını alırıq
+connection.on("GetOnlineUsers", (users) => {
+    onlineUsersList = users;
+    renderOnlineMembers();
+});
+
+// 2. Başqa kimsə sayta girəndə siyahıya əlavə edirik
+connection.on("UserIsOnline", (username) => {
+    if (!onlineUsersList.includes(username)) {
+        onlineUsersList.push(username);
+        renderOnlineMembers();
+    }
+});
+
+// 3. Kimsə saytdan çıxanda siyahıdan silirik
+connection.on("UserIsOffline", (username) => {
+    onlineUsersList = onlineUsersList.filter(u => u !== username);
+    renderOnlineMembers();
+});
+// ==========================================
+// 14. ŞƏXSİ MESAJLAŞMA (DM)
+// ==========================================
+
+// C#-dakı kimi adları əlifba sırası ilə düzüb eyni Otaq adını alırıq
+function getDirectChatRoomName(user1, user2) {
+    return user1.localeCompare(user2) < 0 ? `${user1}_${user2}` : `${user2}_${user1}`;
+}
+
+function startDirectMessage(targetUser) {
+    // Özümüzə yaza bilmərik :)
+    if (targetUser === currentUserName) return; 
+
+    // Yeni DM otağının adını yaradırıq (Məsələn: Emin_Hesen)
+    const dmRoomName = getDirectChatRoomName(currentUserName, targetUser);
+    
+    // Qlobal dəyişənimiz olan currentChannelId-ni dəyişirik ki, mesajlarımız bura getsin
+    currentChannelId = dmRoomName;
+    currentDMUser = targetUser; // Bunu yadda saxlayırıq ki, DM yazanda tapaq
+
+    // Serverə deyirik ki, bizi bu yeni otağa salsın
+    connection.invoke("JoinDirectChat", currentUserName, targetUser)
+        .then(() => {
+            console.log(`✅ ${targetUser} ilə gizli DM otağına daxil oldunuz.`);
+            
+            // Ekrandakı başlığı dəyişib adamın adını qoyuruq
+            document.getElementById("chat-title").innerText = `@${targetUser}`;
+            document.querySelector(".topic").innerText = "Şəxsi Mesajlaşma";
+            
+            // Mesajlar qutusunu təmizləyirik (ümumi kanalın mesajları getsin)
+            const messagesContainer = document.getElementById("messages");
+            if(messagesContainer) messagesContainer.innerHTML = '';
+            
+            // Input bölməsinin yazısını dəyişirik
+            document.getElementById("messageInput").placeholder = `@${targetUser} üçün mesaj yaz...`;
+            
+            // YENİ ƏLAVƏ: Otağa girən kimi bildiriş (qırmızı nöqtə) itsin
+            removeBadgeFromUser(targetUser);
+        })
+        .catch(err => console.error("❌ DM xətası:", err));
+}
+
+// ==========================================
+// 15. BİLDİRİŞ (NOTIFICATION) SİSTEMİ
+// ==========================================
+
+function showNewMessageNotification(senderName) {
+    // 1. Özümüzə yazmamışıqsa və hazırda o adamın DM otağında deyiliksə işləsin
+    const currentRoom = getDirectChatRoomName(currentUserName, senderName);
+    if (senderName === currentUserName || currentChannelId === currentRoom) return;
+
+    // 2. Səs oynat
+    playSound(SOUND_MSG);
+
+    // 3. Sağdakı paneldə adamın adının yanına qırmızı Badge əlavə et
+    const members = document.querySelectorAll('.member-item');
+    members.forEach(member => {
+        const nameSpan = member.querySelector('.member-name');
+        if (nameSpan && nameSpan.innerText === senderName) {
+            if (!member.querySelector('.dm-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'dm-badge';
+                badge.innerText = '1';
+                member.appendChild(badge);
+            }
+        }
+    });
+
+    // 4. Ekranda sağ aşağıda Pop-up (Toast) yarat
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.innerHTML = `
+        <img src="https://ui-avatars.com/api/?name=${senderName}&background=random" style="width: 35px; border-radius: 50%;">
+        <div>
+            <h4 style="margin: 0; font-size: 14px; color: #f2f3f5;">${senderName}</h4>
+            <p style="margin: 3px 0 0 0; font-size: 12px; color: #b5bac1;">Sənə yeni mesaj göndərdi!</p>
+        </div>
+    `;
+
+    // 5. Pop-up-a basanda birbaşa həmin adamın chatına keçsin və pop-up itsin
+    toast.onclick = () => {
+        startDirectMessage(senderName);
+        toast.remove();
+        // Badge-i də silirik çünki oxuduq
+        removeBadgeFromUser(senderName); 
+    };
+
+    document.body.appendChild(toast);
+
+    // Animasiya ilə gəlməsi üçün kiçik gecikmə
+    setTimeout(() => toast.classList.add('show'), 100);
+
+    // 5 saniyə sonra avtomatik yoxa çıxsın
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400); // Tam itəndən sonra DOM-dan sil
+    }, 5000);
+}
+
+// Otağa girəndə qırmızı nöqtəni silən funksiya
+function removeBadgeFromUser(username) {
+    const members = document.querySelectorAll('.member-item');
+    members.forEach(member => {
+        const nameSpan = member.querySelector('.member-name');
+        if (nameSpan && nameSpan.innerText === username) {
+            const badge = member.querySelector('.dm-badge');
+            if (badge) badge.remove();
+        }
+    });
 }

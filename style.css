@@ -1422,3 +1422,38 @@ body.login-body {
 .btn-delete-discord:active {
     background-color: rgba(218, 55, 60, 0.2);
 }
+
+/* --- YENİ BİLDİRİŞ (TOAST) DİZAYNI --- */
+.toast-notification {
+    position: fixed;
+    bottom: 20px;
+    right: -300px; /* Ekranda gizli başlayır */
+    background: #2b2d31;
+    color: white;
+    padding: 12px 15px;
+    border-radius: 8px;
+    border-left: 4px solid #5865F2; /* Discord göy rəngi */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 9999;
+    cursor: pointer;
+    transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.toast-notification.show {
+    right: 20px; /* Animasiya ilə ekrana daxil olur */
+}
+
+/* Sağ paneldəki Qırmızı Nöqtə (Badge) */
+.dm-badge {
+    background: #DA373C;
+    color: white;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 12px;
+    margin-left: auto;
+    box-shadow: 0 0 5px rgba(218, 55, 60, 0.5);
+}
