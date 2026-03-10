@@ -543,10 +543,13 @@ window.switchServer = function (element) {
     const serverTitle = document.getElementById('current-server-name');
     if (serverTitle) serverTitle.innerText = element.getAttribute('data-name');
 
-    // YENİ: Seçilən serverin ID-sini yadda saxlayırıq
+    // Server ID-sini yadda saxla
     currentServerId = element.getAttribute('data-id');
     
-    // İstəsən gələcəkdə bura "loadServerChannels(currentServerId)" əlavə edib serverin kanallarını çəkə bilərik.
+    // YENİ: Seçilən serverin kanallarını yüklə!
+    if (currentServerId) {
+        loadServerChannels(currentServerId);
+    }
 };
 
 // ==========================================
@@ -874,6 +877,69 @@ function confirmDeleteChannel() {
     currentEditingChannel.remove();
     closeChannelModals();
 }
+// ==========================================
+// KANALLARI BAZADAN ÇƏKMƏK (GET)
+// ==========================================
+window.loadServerChannels = async function(serverId) {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+        // C# API-yə seçili serverin ID-si ilə sorğu göndəririk
+        // QEYD: Əgər C#-da endpoint fərqlidirsə (məs: /Channel/list/serverId), buranı ona uyğun düzəldərsən.
+        const response = await fetch(`${API_BASE_URL}/Channel/server/${serverId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const channels = await response.json();
+            
+            const textChannelsList = document.getElementById('text-channels-list');
+            const voiceChannelsList = document.getElementById('voice-channels-list');
+
+            // Əvvəlcə ekrandakı köhnə siyahıları təmizləyirik ki, üst-üstə minməsin
+            if(textChannelsList) textChannelsList.innerHTML = '';
+            if(voiceChannelsList) voiceChannelsList.innerHTML = '';
+
+            // Gələn kanalları növünə görə (Text=0, Voice=1) ayırıb ekrana çəkirik
+            channels.forEach(channel => {
+                const isVoice = channel.type === 1; // 1 Səs üçündür, 0 Mətn üçündür
+                const iconClass = isVoice ? 'fa-volume-high' : 'fa-hashtag';
+                
+                // Mətn kanalına basanda switchTextChannel (bunu növbəti addımda yazacağıq), 
+                // Səs kanalına basanda isə joinChannel işə düşəcək.
+                const onClickAttr = isVoice 
+                    ? `onclick="joinChannel('${channel.id}', '${channel.name}')"` 
+                    : `onclick="switchTextChannel('${channel.id}', '${channel.name}')"`;
+                    
+                const itemClass = isVoice ? 'channel-item voice-channel' : 'channel-item';
+
+                const channelHTML = `
+                    <div class="${itemClass}" ${onClickAttr} data-id="${channel.id}">
+                        <div class="channel-name-wrapper">
+                            <i class="fa-solid ${iconClass}"></i>
+                            <span>${channel.name.toLowerCase()}</span>
+                        </div>
+                        <i class="fa-solid fa-gear channel-settings-icon" onclick="event.stopPropagation(); openEditChannelModal(this)"></i>
+                    </div>
+                `;
+
+                if (isVoice) {
+                    voiceChannelsList.insertAdjacentHTML('beforeend', channelHTML);
+                } else {
+                    textChannelsList.insertAdjacentHTML('beforeend', channelHTML);
+                }
+            });
+        } else {
+            console.error("Kanallar tapılmadı və ya xəta baş verdi.");
+        }
+    } catch (error) {
+        console.error("Kanalları yükləmə xətası:", error);
+    }
+};
 
 // ==========================================
 // 12. SIGNALR CANLI CHAT BAĞLANTISI (TAM UYĞUN)
@@ -1128,3 +1194,319 @@ function removeBadgeFromUser(username) {
         }
     });
 }
+
+
+// ==========================================
+// 16. MƏTN KANALINA KEÇİD VƏ KÖHNƏ MESAJLAR (GET)
+// ==========================================
+
+window.switchTextChannel = async function(channelId, channelName) {
+    // 1. Yeni kanalın ID-sini yadda saxlayırıq və DM modundan çıxırıq
+    currentChannelId = channelId;
+    currentDMUser = null; 
+
+    console.log(`Keçid edilir: ${channelName} (${channelId})`);
+
+    // (Opsional) Orta paneldə yuxarıda kanalın adını dəyişmək üçün:
+    // Əgər HTML-də belə bir yerin varsa, aktiv edərsən:
+    const chatHeaderTitle = document.querySelector('.chat-header span');
+    if (chatHeaderTitle) {
+        chatHeaderTitle.innerHTML = `<i class="fa-solid fa-hashtag"></i> ${channelName.toLowerCase()}`;
+    }
+
+    // 2. Mesaj qutusunu təmizləyirik (köhnə kanalın mesajları getsin)
+    messagesContainer.innerHTML = '<div class="loading-msg" style="color: gray; text-align: center; margin-top: 20px;">Mesajlar yüklənir...</div>';
+
+    // 3. SignalR-i yeni kanala qoşuruq
+    if (connection.state === signalR.HubConnectionState.Connected) {
+        connection.invoke("JoinChannel", channelId)
+            .then(() => console.log(`✅ SignalR ${channelName} kanalına bağlandı.`))
+            .catch(err => console.error("Kanal dəyişmə xətası:", err));
+    }
+
+    // 4. Baza (API) üzərindən köhnə mesajları çəkirik
+    const token = localStorage.getItem("token");
+    try {
+        // QEYD: C# API-də mesajları çəkmək üçün hansı url-dirsə, ona uyğunlaşdır (məs: /Message/channel/{channelId})
+        const response = await fetch(`${API_BASE_URL}/Message/channel/${channelId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        messagesContainer.innerHTML = ''; // "Yüklənir..." yazısını silirik
+
+        if (response.ok) {
+            const oldMessages = await response.json();
+            
+            // Köhnə mesajları ekrana düzürük
+            oldMessages.forEach(msg => {
+                // Əgər C#-dan gələn tarixin formatını düzəltmək lazımdırsa
+                const dateObj = new Date(msg.createdAt);
+                const timeString = dateObj.getHours() + ":" + (dateObj.getMinutes() < 10 ? '0' : '') + dateObj.getMinutes();
+                const avatar = `https://ui-avatars.com/api/?name=${msg.senderName}&background=random`;
+
+                const messageHTML = `
+                    <div class="message">
+                        <div class="message-avatar">
+                            <img src="${avatar}" alt="User">
+                        </div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="msg-username">${msg.senderName}</span>
+                                <span class="msg-time">${timeString}</span>
+                            </div>
+                            <div class="msg-text">${msg.content}</div>
+                        </div>
+                    </div>
+                `;
+                messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
+            });
+
+            // Siyahını ən aşağı (ən yeni mesaja) sürüşdür
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } else {
+            console.log("Kanalda hələ mesaj yoxdur.");
+        }
+    } catch (error) {
+        console.error("Mesajları yükləmə xətası:", error);
+        messagesContainer.innerHTML = ''; // Səhv olanda qutunu boşalt
+    }
+};
+
+// ==========================================
+// SERVER TOOLTIP (DİNAMİK VƏ YENİ SERVERLƏR ÜÇÜN)
+// ==========================================
+
+// Tooltip qutusunu bir dəfə yaradıb ekrana (body) əlavə edirik
+const tooltip = document.createElement('div');
+tooltip.id = 'global-tooltip';
+document.body.appendChild(tooltip);
+
+// Mouse səhifədə hərəkət edəndə (mouseover) yoxlayırıq
+document.addEventListener('mouseover', (e) => {
+    // Əgər mouse-un getdiyi yer server ikonu (və ya onun içindəki şəkildirsə)
+    const icon = e.target.closest('.server-icon');
+    if (!icon) return; // İkon deyilsə heç nə etmə
+
+    const serverName = icon.getAttribute('data-name');
+    if (!serverName) return;
+
+    // Adı qutunun içinə yazırıq
+    tooltip.innerText = serverName;
+
+    // Əvvəlcə görünür edirik ki, hündürlüyünü (offsetHeight) hesablaya bilək
+    tooltip.classList.add('show');
+
+    // İkonun ekrandakı koordinatlarını alırıq
+    const rect = icon.getBoundingClientRect();
+
+    // Tooltip-i ikonun düz sağına və mərkəzinə yerləşdiririk
+    tooltip.style.left = `${rect.right + 15}px`;
+    tooltip.style.top = `${rect.top + (rect.height / 2) - (tooltip.offsetHeight / 2)}px`;
+});
+
+// Mouse ikondan çıxanda (mouseout) yoxlayırıq
+document.addEventListener('mouseout', (e) => {
+    const icon = e.target.closest('.server-icon');
+    if (!icon) return;
+
+    // Mouse çəkiləndə gizlədirik
+    tooltip.classList.remove('show');
+});
+
+// ==========================================
+// DOSTLUQ SİSTEMİ (FRIENDSHIP)
+// ==========================================
+
+// 1. Tablar arasında keçid etmək
+window.switchFriendTab = function(btn, tabName) {
+    // Bütün tablardan "active" class-ını silib, basılana əlavə edirik
+    document.querySelectorAll('.friend-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+
+    const listContainer = document.getElementById('friends-list-container');
+    const addContainer = document.getElementById('add-friend-container');
+
+    if (tabName === 'add') {
+        // "Dost Əlavə Et" bölməsini göstər, siyahını gizlət
+        listContainer.style.display = 'none';
+        addContainer.style.display = 'block';
+        document.getElementById('add-friend-message').innerText = ""; // Köhnə mesajı təmizlə
+    } else {
+        // Digər tablarda siyahını göstər, "əlavə et" bölməsini gizlət
+        addContainer.style.display = 'none';
+        listContainer.style.display = 'block';
+        
+        if (tabName === 'all') {
+            loadFriends(); // Bütün dostları gətir
+        } else if (tabName === 'pending') {
+            loadPendingRequests(); // Gözləyən istəkləri gətir
+        } else if (tabName === 'online') {
+            // Hələlik onlayn sistemi qurmadığımıza görə boş göstəririk
+            listContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+                    <p>Onlayn dostların burada görünəcək.</p>
+                </div>`;
+        }
+    }
+};
+
+// 2. Dostluq İstəyi Göndərmək
+window.sendFriendRequestUI = async function() {
+    const input = document.getElementById('friend-username-input');
+    const username = input.value.trim();
+    const msgBox = document.getElementById('add-friend-message');
+
+    if (!username) {
+        msgBox.innerText = "İstifadəçi adını yazmalısan!";
+        msgBox.style.color = "#fa777c"; // Qırmızı (Xəta)
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/friendship/request-by-username/${username}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        
+        // API-dən gələn cavabı oxuyuruq
+        let result;
+        try { result = await response.json(); } catch(e) { result = { Message: "Gözlənilməz xəta baş verdi."}; }
+
+        if (response.ok) {
+            msgBox.innerText = "Dostluq istəyi uğurla göndərildi! ✅";
+            msgBox.style.color = "#23A559"; // Yaşıl (Uğurlu)
+            input.value = ""; // İnputu təmizlə
+        } else {
+            msgBox.innerText = result.Message || "Xəta baş verdi.";
+            msgBox.style.color = "#fa777c"; // Qırmızı
+        }
+    } catch (error) {
+        console.error("İstək xətası:", error);
+        msgBox.innerText = "Serverlə əlaqə qurula bilmədi.";
+        msgBox.style.color = "#fa777c";
+    }
+};
+
+// 3. Dostları Siyahıya Yükləmək
+window.loadFriends = async function() {
+    const listContainer = document.getElementById('friends-list-container');
+    listContainer.innerHTML = '<div style="color:#949ba4; padding: 20px;">Yüklənir...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/friendship/friends`, {
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        
+        if (!response.ok) throw new Error("Dostlar çəkilə bilmədi");
+        const friends = await response.json();
+
+        if (friends.length === 0) {
+            listContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+                    <p>Burada hələlik heç kim yoxdur.</p>
+                </div>`;
+            return;
+        }
+
+        // Dostlar varsa, siyahını HTML olaraq yaradırıq
+        listContainer.innerHTML = friends.map(f => `
+            <div class="friend-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="https://ui-avatars.com/api/?name=${f.userName}&background=random" style="width: 32px; height: 32px; border-radius: 50%;">
+                    <span style="color: white; font-weight: 500;">${f.userName}</span>
+                </div>
+                <div class="actions">
+                    <button onclick="removeFriend('${f.id}', 'all')" style="background: #2b2d31; color: #dbdee1; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Dostluqdan sil">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch(e) {
+        listContainer.innerHTML = '<div style="color:#fa777c; padding: 20px;">Xəta baş verdi.</div>';
+    }
+};
+
+// 4. Gözləyən İstəkləri Yükləmək
+window.loadPendingRequests = async function() {
+    const listContainer = document.getElementById('friends-list-container');
+    listContainer.innerHTML = '<div style="color:#949ba4; padding: 20px;">Yüklənir...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/friendship/pending`, {
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        
+        if (!response.ok) throw new Error("İstəklər çəkilə bilmədi");
+        const requests = await response.json();
+
+        if (requests.length === 0) {
+            listContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+                    <p>Gözləyən istəyin yoxdur.</p>
+                </div>`;
+            return;
+        }
+
+        // İstəkləri ekranda göstəririk (Qəbul et və Rədd et düymələri ilə)
+        listContainer.innerHTML = requests.map(r => `
+            <div class="friend-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="https://ui-avatars.com/api/?name=${r.userName}&background=random" style="width: 32px; height: 32px; border-radius: 50%;">
+                    <span style="color: white; font-weight: 500;">${r.userName}</span>
+                    <span style="color: #949ba4; font-size: 12px;">Gələn İstək</span>
+                </div>
+                <div class="actions" style="display: flex; gap: 10px;">
+                    <button onclick="acceptFriend('${r.id}')" style="background: #2b2d31; color: #23A559; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Qəbul et">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                    <button onclick="removeFriend('${r.id}', 'pending')" style="background: #2b2d31; color: #fa777c; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Rədd et">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch(e) {
+        listContainer.innerHTML = '<div style="color:#fa777c; padding: 20px;">Xəta baş verdi.</div>';
+    }
+};
+
+// 5. Dostluq İstəyini Qəbul Etmək
+window.acceptFriend = async function(userId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/friendship/accept/${userId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        if(response.ok) {
+            loadPendingRequests(); // Siyahını avtomatik yenilə ki, adam oradan itsin
+        } else {
+            alert("Xəta baş verdi!");
+        }
+    } catch (e) { console.error(e); }
+};
+
+// 6. Dostluqdan Silmək və ya İstəyi Rədd Etmək
+window.removeFriend = async function(userId, currentTab) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/friendship/remove/${userId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        if(response.ok) {
+            // Hansı tabdayıqsa o siyahını yeniləyirik
+            if(currentTab === 'pending') loadPendingRequests();
+            else loadFriends();
+        } else {
+            alert("Silinə bilmədi!");
+        }
+    } catch (e) { console.error(e); }
+};

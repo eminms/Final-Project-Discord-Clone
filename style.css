@@ -1457,3 +1457,38 @@ body.login-body {
     margin-left: auto;
     box-shadow: 0 0 5px rgba(218, 55, 60, 0.5);
 }
+
+/* GLOBAL TOOLTIP (DISCORD STİLİ) */
+#global-tooltip {
+    position: fixed;
+    background-color: #111214;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 9999; /* Hər şeyin üstündə çıxması üçün */
+    opacity: 0;
+    transition: opacity 0.15s ease-out, transform 0.1s ease-out;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    transform: scale(0.9);
+}
+
+#global-tooltip.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* Tooltip-in solundakı kiçik ox */
+#global-tooltip::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -10px;
+    transform: translateY(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: transparent #111214 transparent transparent;
+}
