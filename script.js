@@ -31,6 +31,7 @@ let localScreenTrack = null;
 let isMicMuted = false;
 let isCamOn = false;
 let isScreenSharing = false;
+let currentServerInviteCode = "KOD-YOXDUR"; // Hazırda aktiv olan serverin kodu
 
 // Səs oynatmaq üçün köməkçi funksiya
 function playSound(url) {
@@ -438,18 +439,18 @@ if (fileInput) {
 // ==========================================
 
 // Serveri UI-a (sol panelə) əlavə edən köməkçi funksiya
-window.addServerToUI = function(serverId, serverName, imageUrl) {
+window.addServerToUI = function(serverId, serverName, imageUrl, inviteCode) {
     const newServerHTML = `
         <div class="server-wrapper">
             <div class="pill"></div>
-            <div class="server-icon" data-id="${serverId}" data-name="${serverName}" onclick="switchServer(this)">
+            <div class="server-icon" data-id="${serverId}" data-name="${serverName}" data-invite="${inviteCode || ''}" onclick="switchServer(this)">
                 <img src="${imageUrl}" alt="Server">
             </div>
         </div>
     `;
 
     const serversNav = document.querySelector('.servers-nav'); 
-    const addIconWrapper = addServerBtn.closest('.server-wrapper');
+    const addIconWrapper = document.querySelector('.add-icon').closest('.server-wrapper');
 
     if (serversNav && addIconWrapper) {
         const tempDiv = document.createElement('div');
@@ -457,6 +458,17 @@ window.addServerToUI = function(serverId, serverName, imageUrl) {
         const newServerElement = tempDiv.firstChild;
         
         serversNav.insertBefore(newServerElement, addIconWrapper);
+    }
+};
+
+window.copyInviteCode = function() {
+    const code = document.getElementById('current-invite-code-display').innerText;
+    if (code && code !== "...") {
+        navigator.clipboard.writeText(code).then(() => {
+            alert(`Davet Kodu (${code}) kopyalandı! Arkadaşlarına gönderebilirsin.`);
+        }).catch(err => {
+            console.error('Kopyalama xetası:', err);
+        });
     }
 };
 
@@ -468,7 +480,6 @@ window.createNewServer = async function () {
         return;
     }
 
-    // Tokeni götürürük
     const token = localStorage.getItem("token");
     if (!token) {
         alert("Token tapılmadı, zəhmət olmasa yenidən login olun!");
@@ -476,16 +487,15 @@ window.createNewServer = async function () {
     }
 
     try {
-        // Backend-ə (C#) məlumatları göndəririk
         const response = await fetch(`${API_BASE_URL}/Server/create`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // [Authorize] üçün mütləqdir!
+                'Authorization': `Bearer ${token}` 
             },
             body: JSON.stringify({
                 Name: serverName,
-                Description: "Mənim yeni serverim", // İstəsən gələcəkdə bura input əlavə edərsən
+                Description: "Mənim yeni serverim", 
                 ImageUrl: uploadedImageURL || ""
             })
         });
@@ -493,8 +503,8 @@ window.createNewServer = async function () {
         if (response.ok) {
             const data = await response.json();
             
-            // Baza serveri uğurla yaratdı! İndi C#-dan gələn ID və Şəkillə onu ekrana çəkirik
-            addServerToUI(data.serverId, serverName, data.image);
+            // DİQQƏT: data.inviteCode əlavə edildi!
+            addServerToUI(data.serverId, serverName, data.image, data.inviteCode);
             closeModal();
             
         } else {
@@ -522,9 +532,9 @@ window.loadMyServers = async function() {
 
         if (response.ok) {
             const servers = await response.json();
-            // Bazadan gələn hər bir serveri sol panelə düzürük
             servers.forEach(server => {
-                addServerToUI(server.id, server.name, server.imageUrl);
+                // DİQQƏT: server.inviteCode əlavə edildi!
+                addServerToUI(server.id, server.name, server.imageUrl, server.inviteCode);
             });
         }
     } catch (error) {
@@ -543,12 +553,25 @@ window.switchServer = function (element) {
     const serverTitle = document.getElementById('current-server-name');
     if (serverTitle) serverTitle.innerText = element.getAttribute('data-name');
 
-    // Server ID-sini yadda saxla
     currentServerId = element.getAttribute('data-id');
+    const currentInvite = element.getAttribute('data-invite'); // Kodu butondan alırıq
     
-    // YENİ: Seçilən serverin kanallarını yüklə!
+    // YENİ ƏLAVƏ: Qlobal dəyişəni yeniləyirik!
+    currentServerInviteCode = currentInvite || "KOD-YOXDUR";
+    
+    // Davet kodunu ekranda göster
+    const inviteChannel = document.getElementById('invite-code-channel');
+    const inviteDisplay = document.getElementById('current-invite-code-display');
+    
+    if (currentInvite && currentInvite !== "undefined" && currentInvite !== "") {
+        inviteDisplay.innerText = currentInvite;
+        inviteChannel.style.display = 'flex';
+    } else {
+        inviteChannel.style.display = 'none';
+    }
+    
     if (currentServerId) {
-        loadServerChannels(currentServerId);
+        // loadServerChannels(currentServerId); 
     }
 };
 
@@ -1362,27 +1385,43 @@ window.sendFriendRequestUI = async function() {
 
     if (!username) {
         msgBox.innerText = "İstifadəçi adını yazmalısan!";
-        msgBox.style.color = "#fa777c"; // Qırmızı (Xəta)
+        msgBox.style.color = "#fa777c"; 
+        return;
+    }
+
+    // 1. DÜZƏLİŞ: Tokeni bazadan (login olanda yadda saxladığımız yerdən) götürürük
+    const jwtToken = localStorage.getItem("token"); 
+    if (!jwtToken) {
+        msgBox.innerText = "Sistemə daxil olmamısınız (Token yoxdur)!";
+        msgBox.style.color = "#fa777c"; 
         return;
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/friendship/request-by-username/${username}`, {
+        // 2. DÜZƏLİŞ: URL-dən artıq "/api" sözünü sildik
+        const response = await fetch(`${API_BASE_URL}/Friendship/request-by-username/${username}`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${TOKEN}` }
+            headers: { 
+                'Authorization': `Bearer ${jwtToken}`
+            }
         });
         
         // API-dən gələn cavabı oxuyuruq
         let result;
-        try { result = await response.json(); } catch(e) { result = { Message: "Gözlənilməz xəta baş verdi."}; }
+        try { 
+            result = await response.json(); 
+        } catch(e) { 
+            result = { message: "Gözlənilməz xəta baş verdi."}; 
+        }
 
         if (response.ok) {
             msgBox.innerText = "Dostluq istəyi uğurla göndərildi! ✅";
-            msgBox.style.color = "#23A559"; // Yaşıl (Uğurlu)
-            input.value = ""; // İnputu təmizlə
+            msgBox.style.color = "#23A559"; 
+            input.value = ""; 
         } else {
-            msgBox.innerText = result.Message || "Xəta baş verdi.";
-            msgBox.style.color = "#fa777c"; // Qırmızı
+            // Backend-dən gələn mesajı göstəririk (C#-dan həm "Message", həm də "message" gələ bilər)
+            msgBox.innerText = result.message || result.Message || "Xəta baş verdi.";
+            msgBox.style.color = "#fa777c"; 
         }
     } catch (error) {
         console.error("İstək xətası:", error);
@@ -1509,4 +1548,340 @@ window.removeFriend = async function(userId, currentTab) {
             alert("Silinə bilmədi!");
         }
     } catch (e) { console.error(e); }
+};
+
+// Qatılma inputunu aç/bağla
+function toggleJoinServerInput() {
+    const joinArea = document.getElementById("join-input-area");
+    // Əgər bağlıdırsa aç, açıqdırsa bağla
+    if (joinArea.style.display === "none") {
+        joinArea.style.display = "block";
+        // İstəsən açılan kimi fokuslansın
+        document.getElementById("join-server-input").focus();
+    } else {
+        joinArea.style.display = "none";
+    }
+}
+
+// Qatılma sorğusunu C# API-yə göndər
+window.joinServerWithCode = async function() {
+    const inviteCode = document.getElementById("join-server-input").value.trim();
+    
+    // 6 simvol yoxlaması
+    if (!inviteCode || inviteCode.length !== 6) {
+        alert("Zəhmət olmasa 6 simvollu dəvət kodunu düzgün daxil edin!");
+        return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert("Əvvəlcə sistemə daxil olmalısınız!");
+        return;
+    }
+
+    try {
+        console.log("API-yə qoşulma istəyi gedir. Kod:", inviteCode);
+        
+        const response = await fetch(`${API_BASE_URL}/Server/join/${inviteCode}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            // C#-dan gələn təbrik mesajını göstəririk
+            alert(data.message || "Serverə uğurla qoşuldunuz!");
+            
+            // Qoşulduğumuz serveri sol panelə dərhal əlavə edirik (Səhifəni yeniləmədən!)
+            if (data.serverId && data.name) {
+                addServerToUI(data.serverId, data.name, data.imageUrl);
+            }
+            
+            // Modalı bağla və inputu təmizlə
+            closeModal();
+            document.getElementById("join-server-input").value = "";
+            document.getElementById("join-input-area").style.display = "none"; // Accordion-u da bağlayaq
+            
+        } else {
+            const errorData = await response.json();
+            alert("Xəta: " + (errorData.message || "Kod yalnışdır və ya artıq bu serverdəsiniz."));
+        }
+    } catch (err) {
+        console.error("Qoşulma xətası:", err);
+        alert("Serverlə əlaqə qurula bilmədi.");
+    }
+}
+
+// Modalı açmaq və kodu içinə yazmaq
+function openInviteModal() {
+    const modal = document.getElementById("invite-modal-overlay");
+    const input = document.getElementById("server-invite-code");
+    
+    // Qlobal dəyişəndəki kodu inputa yazırıq
+    input.value = currentServerInviteCode; 
+
+    // Kopyalandı yazısını gizlədirik, düyməni sıfırlayırıq
+    document.getElementById("copy-feedback").style.display = "none";
+    document.getElementById("copy-invite-btn").innerText = "Kopyala";
+    document.getElementById("copy-invite-btn").style.background = "#5865F2";
+
+    modal.style.display = "flex";
+}
+// Modalı bağlamaq
+function closeInviteModal() {
+    document.getElementById("invite-modal-overlay").style.display = "none";
+}
+
+// Kodu Kopyalamaq (Clipboard)
+function copyInviteCode() {
+    const copyText = document.getElementById("server-invite-code");
+    
+    // Mətni seçirik və panoya (clipboard) kopyalayırıq
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); // Mobil cihazlar üçün
+    navigator.clipboard.writeText(copyText.value).then(() => {
+        
+        // Kopyalandıqdan sonra UI-ı dəyişirik
+        const btn = document.getElementById("copy-invite-btn");
+        btn.innerText = "Kopyalandı!";
+        btn.style.background = "#23A559"; // Yaşıl rəng
+        
+        document.getElementById("copy-feedback").style.display = "block";
+        
+        // 3 saniyə sonra düyməni əvvəlki vəziyyətinə qaytarırıq
+        setTimeout(() => {
+            btn.innerText = "Kopyala";
+            btn.style.background = "#5865F2";
+            document.getElementById("copy-feedback").style.display = "none";
+        }, 3000);
+    }).catch(err => {
+        console.error("Kopyalama xətası: ", err);
+    });
+}
+
+// ==========================================
+// GÖZLƏYƏN İSTƏKLƏR VƏ QƏBUL/RƏDD ETMƏ
+// ==========================================
+
+window.loadPendingRequests = async function() {
+    const jwtToken = localStorage.getItem("token"); 
+    if (!jwtToken) return;
+
+    const listContainer = document.getElementById('friends-list-container');
+    if(!listContainer) return;
+
+    listContainer.innerHTML = '<div style="color:#949ba4; padding: 20px;">Yüklənir...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/Friendship/pending`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+
+        if (response.ok) {
+            const pendingList = await response.json();
+            
+            if (pendingList.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+                        <p>Gözləyən istəyin yoxdur.</p>
+                    </div>`;
+                return;
+            }
+
+            listContainer.innerHTML = pendingList.map(user => `
+                <div class="friend-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="https://ui-avatars.com/api/?name=${user.userName}&background=random" style="width: 32px; height: 32px; border-radius: 50%;">
+                        <span style="color: white; font-weight: 500;">${user.userName}</span>
+                        <span style="color: #949ba4; font-size: 12px;">Gələn İstək</span>
+                    </div>
+                    <div class="actions" style="display: flex; gap: 10px;">
+                        <button onclick="acceptFriendRequest('${user.id}')" style="background: #2b2d31; color: #23A559; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Qəbul et">
+                            <i class="fa-solid fa-check"></i>
+                        </button>
+                        <button onclick="rejectFriendRequest('${user.id}')" style="background: #2b2d31; color: #fa777c; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Rədd et">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+        } else {
+            listContainer.innerHTML = '<div style="color:#fa777c; padding: 20px;">Xəta baş verdi.</div>';
+        }
+    } catch (error) {
+        console.error("İstək xətası:", error);
+        listContainer.innerHTML = '<div style="color:#fa777c; padding: 20px;">Serverlə əlaqə yoxdur.</div>';
+    }
+};
+
+window.acceptFriendRequest = async function(requesterId) {
+    const jwtToken = localStorage.getItem("token"); 
+    try {
+        const response = await fetch(`${API_BASE_URL}/Friendship/accept/${requesterId}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+
+        if (response.ok) {
+            loadPendingRequests(); // Siyahını yenilə
+        } else {
+            alert("Qəbul edilərkən xəta baş verdi.");
+        }
+    } catch (e) { console.error(e); }
+};
+
+window.rejectFriendRequest = async function(userId) {
+    const jwtToken = localStorage.getItem("token"); 
+    try {
+        const response = await fetch(`${API_BASE_URL}/Friendship/remove/${userId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+
+        if (response.ok) {
+            loadPendingRequests(); // Siyahını yenilə
+        } else {
+            alert("Rədd edilərkən xəta baş verdi.");
+        }
+    } catch (e) { console.error(e); }
+};
+
+// ==========================================
+// BÜTÜN DOSTLAR (HAMISI TABI) - DÜZƏLDİLMİŞ
+// ==========================================
+window.loadFriends = async function() {
+    const jwtToken = localStorage.getItem("token"); 
+    const listContainer = document.getElementById('friends-list-container');
+    if(!listContainer || !jwtToken) return;
+
+    listContainer.innerHTML = '<div style="color:#949ba4; padding: 20px;">Yüklənir...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/Friendship/friends`, {
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        
+        if (response.ok) {
+            const friends = await response.json();
+
+            if (friends.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+                        <p>Burada hələlik heç kim yoxdur.</p>
+                    </div>`;
+                return;
+            }
+
+            // DÜZƏLİŞ: onclick hissələrində dırnaqları &quot; ilə əvəz etdik
+            listContainer.innerHTML = friends.map(f => `
+                <div class="friend-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="https://ui-avatars.com/api/?name=${f.userName}&background=random" style="width: 32px; height: 32px; border-radius: 50%;">
+                        <span style="color: white; font-weight: 500;">${f.userName}</span>
+                    </div>
+                    <div class="actions" style="display: flex; gap: 10px;">
+                        <button onclick="startDirectMessage(&quot;${f.userName}&quot;)" style="background: #2b2d31; color: #dbdee1; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Mesaj yaz">
+                            <i class="fa-solid fa-message"></i>
+                        </button>
+                        <button onclick="rejectFriendRequest(&quot;${f.id}&quot;)" style="background: #2b2d31; color: #fa777c; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Dostluqdan sil">
+                            <i class="fa-solid fa-user-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch(e) {
+        console.error(e);
+        listContainer.innerHTML = '<div style="color:#fa777c; padding: 20px;">Xəta baş verdi.</div>';
+    }
+};
+
+// ==========================================
+// ONLAYN DOSTLAR TABI - DÜZƏLDİLMİŞ
+// ==========================================
+window.loadOnlineFriends = async function() {
+    const jwtToken = localStorage.getItem("token"); 
+    const listContainer = document.getElementById('friends-list-container');
+    if(!listContainer || !jwtToken) return;
+
+    listContainer.innerHTML = '<div style="color:#949ba4; padding: 20px;">Yüklənir...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/Friendship/friends`, {
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        
+        if (response.ok) {
+            const friends = await response.json();
+            
+            // YALNIZ SignalR-da onlayn olan dostları süzürük (onlineUsersList SignalR-dan gəlir)
+            const onlineFriends = friends.filter(f => typeof onlineUsersList !== 'undefined' && onlineUsersList.includes(f.userName));
+
+            if (onlineFriends.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fa-solid fa-ghost" style="font-size: 80px; color: #4f545c; margin-bottom: 20px;"></i>
+                        <p>Hazırda onlayn dostun yoxdur.</p>
+                    </div>`;
+                return;
+            }
+
+            // DÜZƏLİŞ: onclick hissəsini daha təhlükəsiz etdik
+            listContainer.innerHTML = onlineFriends.map(f => `
+                <div class="friend-item" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="https://ui-avatars.com/api/?name=${f.userName}&background=random" style="width: 32px; height: 32px; border-radius: 50%;">
+                        <span style="color: white; font-weight: 500;">${f.userName}</span>
+                        <span style="color: #23A559; font-size: 12px; font-weight: bold;">● Onlayn</span>
+                    </div>
+                    <div class="actions" style="display: flex; gap: 10px;">
+                        <button onclick="startDirectMessage(&quot;${f.userName}&quot;)" style="background: #2b2d31; color: #dbdee1; border: none; padding: 8px 12px; border-radius: 50%; cursor: pointer;" title="Mesaj yaz">
+                            <i class="fa-solid fa-message"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch(e) {
+        console.error(e);
+        listContainer.innerHTML = '<div style="color:#fa777c; padding: 20px;">Xəta baş verdi.</div>';
+    }
+}; 
+
+// ==========================================
+// TABLARI DƏYİŞDİRMƏK ÜÇÜN ƏSAS FUNKSİYA
+// ==========================================
+window.switchFriendTab = function(btn, tabName) {
+    document.querySelectorAll('.friend-tab').forEach(t => t.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+
+    const listContainer = document.getElementById('friends-list-container');
+    const addContainer = document.getElementById('add-friend-container');
+
+    if (tabName === 'add') {
+        if(listContainer) listContainer.style.display = 'none';
+        if(addContainer) addContainer.style.display = 'block';
+        const msg = document.getElementById('add-friend-message');
+        if(msg) msg.innerText = ""; 
+    } else {
+        if(addContainer) addContainer.style.display = 'none';
+        if(listContainer) listContainer.style.display = 'block';
+        
+        // Tabın adına görə uyğun funksiyanı çağırırıq
+        if (tabName === 'all') {
+            loadFriends(); 
+        } else if (tabName === 'pending') {
+            loadPendingRequests(); 
+        } else if (tabName === 'online') {
+            loadOnlineFriends(); 
+        }
+    }
 };

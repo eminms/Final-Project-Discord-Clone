@@ -40,7 +40,7 @@
         </div>
         
         <div class="server-wrapper">
-             <div class="server-icon add-icon">
+             <div class="server-icon add-icon" onclick="openCreateModal()">
                 <i class="fa-solid fa-plus"></i>
             </div>
         </div>
@@ -54,6 +54,7 @@
 
         <div class="channels-list">
             
+           
             <div class="category-header">
                 <div class="category-title">
                     <i class="fa-solid fa-angle-down"></i>
@@ -63,6 +64,10 @@
             </div>
             
             <div id="text-channels-list">
+                <div class="invite-friends-btn" onclick="openInviteModal()">
+                    <i class="fa-solid fa-user-plus"></i>
+                    <span>Dostlarını Dəvət Et</span>
+                </div>
                 <div class="channel-item active" data-channel="general">
                     <div class="channel-name-wrapper">
                         <i class="fa-solid fa-hashtag"></i>
@@ -292,24 +297,40 @@
             <h2>Serverini Fərdiləşdir</h2>
             <p>Yeni serverinə bir ad və simvol ver.</p>
         </div>
-            <div class="modal-body">
-                <div class="upload-container">
-                    <div class="image-preview" id="image-preview">
-                        <i class="fa-solid fa-camera"></i>
-                    </div>
-                    <input type="file" id="server-icon-input" accept="image/*" hidden>
-                    <div class="upload-text">UPLOAD</div>
+        <div class="modal-body">
+            <div class="upload-container">
+                <div class="image-preview" id="image-preview">
+                    <i class="fa-solid fa-camera"></i>
                 </div>
+                <input type="file" id="server-icon-input" accept="image/*" hidden>
+                <div class="upload-text">UPLOAD</div>
+            </div>
 
-                <div class="input-group">
-                    <label>SERVER ADI</label>
-                    <input type="text" id="server-name-input" placeholder="Mənim Möhtəşəm Serverim">
+            <div class="input-group">
+                <label>SERVER ADI</label>
+                <input type="text" id="server-name-input" placeholder="Mənim Möhtəşəm Serverim">
+            </div>
+
+            <div class="join-server-section" style="margin-top: 25px; border-top: 1px solid #313338; padding-top: 15px; text-align: center;">
+                <div style="margin-bottom: 12px; font-size: 12px; color: #b5bac1; font-weight: 600;">VƏ YA ONSUZ DA BİR DƏVƏTİN VAR?</div>
+                
+                <button type="button" class="btn-join-toggle" onclick="toggleJoinServerInput()" style="background-color: #4e5058; color: white; width: 100%; padding: 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; transition: background-color 0.2s;">
+                    Bir Serverə Qatıl
+                </button>
+                
+                <div id="join-input-area" style="display: none; margin-top: 15px; text-align: left;">
+                    <div class="input-group">
+                        <label>DƏVƏT LİNKİ VƏ YA ID</label>
+                        <input type="text" id="join-server-input" placeholder="məs: A1B2C3">
+                    </div>
+                    <button class="btn-create" onclick="joinServerWithCode()" style="width: 100%; margin-top: 10px; background-color: #23a559; padding: 10px; font-size: 14px;">Serverə Qoşul</button>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-cancel" onclick="closeModal()">Geri</button>
-                <button class="btn-create" onclick="createNewServer()">Yarat</button>
             </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal()">Geri</button>
+            <button class="btn-create" id="main-create-btn" onclick="createNewServer()">Yarat</button>
+        </div>
     </div>
 </div>
 
@@ -418,6 +439,22 @@
                 <button class="btn-cancel" onclick="closeChannelModals()">Ləğv et</button>
                 <button class="btn-create" onclick="confirmEditChannel()">Yadda Saxla</button>
             </div>
+        </div>
+    </div>
+</div>
+<div id="invite-modal-overlay" class="discord-modal-overlay" style="display: none;">
+    <div class="discord-modal">
+        <div class="modal-header">
+            <h3>Dostlarını Dəvət Et</h3>
+            <i class="fa-solid fa-xmark close-icon" onclick="closeInviteModal()"></i>
+        </div>
+        <div class="modal-body">
+            <p>Bu serverə qoşulmaq üçün dostlarına bu 6 simvollu kodu göndər:</p>
+            <div class="invite-code-box">
+                <input type="text" id="server-invite-code" readonly value="YÜKLƏNİR...">
+                <button onclick="copyInviteCode()" id="copy-invite-btn">Kopyala</button>
+            </div>
+            <span id="copy-feedback" class="copy-feedback" style="display: none;">Uğurla kopyalandı! ✅</span>
         </div>
     </div>
 </div>
